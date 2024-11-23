@@ -1,28 +1,27 @@
 # BskyProlificFollowers
 
-TODO: Delete this and the text below, and describe your gem
-
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/bsky_prolific_followers`. To experiment with that code, run `bin/console` for an interactive prompt.
+A poorly coded daemon that listens to BlueSky Firehose events, and when one repo (A) follows another (B),
+a check is made on how many accounts repo A follows. If that number is over 5,000, repo (user) A is
+added to a list titled "Over5k"
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
-
 ```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle install
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+Create a `creds.yml` like
 
-```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+```
+id: your-bsky-username
+pass: your-bsky-app-password
 ```
 
 ## Usage
 
-TODO: Write usage instructions here
+```
+./exec/bsky-prolific-followers
+```
 
 ## Development
 
@@ -32,7 +31,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/bsky_prolific_followers.
+Bug reports and pull requests are welcome on GitHub at https://github.com/jeffb4/bsky_prolific_followers.
 
 ## License
 

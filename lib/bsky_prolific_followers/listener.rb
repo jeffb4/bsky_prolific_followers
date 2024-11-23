@@ -154,6 +154,9 @@ module BskyProlificFollowers
            msg.operations[0] &&
            msg.operations[0].path =~ %r{^app.bsky.graph.follow/}
           @did_query_queue.push(msg.did)
+        else
+          check_follows_helper
+          check_list_adder
         end
       end
 
