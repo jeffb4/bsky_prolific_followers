@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+$LOAD_PATH.unshift("#{__dir__}/../lib")
+
+require "bsky_prolific_followers"
+
+cli = BskyProlificFollowers::CLI.new
+exit_status = cli.run
+
+exit exit_status
