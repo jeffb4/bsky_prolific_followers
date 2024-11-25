@@ -13,3 +13,5 @@
 creds.yml
 
 /sorbet/
+
+cache.json.gz
