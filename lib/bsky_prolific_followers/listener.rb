@@ -26,6 +26,8 @@ module BskyProlificFollowers
         { name: "MagaWords", description: "Profiles with MAGA terms in the description" }
       @blocklists[:hw] =
         { name: "HateWords", description: "Profiles with hateful terms in the description or account name" }
+      @blocklists[:pw] =
+        { name: "PornWords", description: "Profiles with porn terms in the description or account name" }
       @list_uris = Concurrent::Map.new
       @profile_schedulers = Concurrent::Array.new(num_profile_resolvers)
       @profile_resolvers = Concurrent::Array.new(num_profile_resolvers)
@@ -33,6 +35,7 @@ module BskyProlificFollowers
       @cache_path = "cache.json.gz"
       @maga_words = load_words("maga_words.txt")
       @hate_words = load_words "hate_words.txt"
+      @porn_words = load_words "porn_words.txt"
     end
 
     def load_words(filename)
@@ -55,13 +58,24 @@ module BskyProlificFollowers
                         })
     end
 
+    def add_user_to_list_if_not_present(bsky, account_did, list_sym)
+      if @blocklists[list_sym][:entries].include? account_did
+        puts "@blocklists[#{list_sym}][:entries].include? #{account_did}"
+        return
+      end
+
+      add_user_to_list(bsky, account_did, @list_uris[list_sym])
+
+      @blocklists[list_sym][:entries] << account_did
+    end
+
     # check the follows on a profile and add to a list if appropriate
     def check_follows(bsky, account_did)
       follows_count = @did_profiles[account_did]["followsCount"]
       return if follows_count <= @follows_limit
 
       puts "Adding #{account_did} (#{follows_count} > #{@follows_limit})"
-      add_user_to_list(bsky, account_did, @list_uris[:over5k])
+      add_user_to_list_if_not_present(bsky, account_did, :over5k)
     end
 
     # check the profile descript for zero width space (U+200b) and add to a list
@@ -75,41 +89,47 @@ module BskyProlificFollowers
       return unless description =~ /\u200B/
 
       puts "Adding #{account_did} contains zws in #{@did_profiles[account_did]["description"]}"
-      add_user_to_list(bsky, account_did, @list_uris[:zws])
+      add_user_to_list_if_not_present(bsky, account_did, :zws)
+    end
+
+    def match_dhd?(account_did, words)
+      description = @did_profiles[account_did]["description"]
+      handle = @did_profiles[account_did]["handle"]
+      display_name = @did_profiles[account_did]["displayName"]
+      return false unless words.any? do |w|
+        description =~ /#{w}\W/i ||
+        handle =~ /#{w}\W/i ||
+        display_name =~ /#{w}\W/i
+      end
+
+      true
     end
 
     # check the profile description for presence of maga words and add to a list
     def check_maga_words(bsky, account_did)
       return unless @did_profiles[account_did].key? "description"
+      return unless match_dhd?(account_did, @maga_words)
 
-      description = @did_profiles[account_did]["description"]
-      handle = @did_profiles[account_did]["handle"]
-      display_name = @did_profiles[account_did]["displayName"]
-      return unless @maga_words.any? do |w|
-        description =~ /#{w}\W/i ||
-        handle =~ /#{w}\W/i ||
-        display_name =~ /#{w}\W/i
-      end
-
-      puts "Adding #{account_did} contains maga_words in #{description}"
-      add_user_to_list(bsky, account_did, @list_uris[:mw])
+      puts "Adding #{account_did} contains maga_words"
+      add_user_to_list_if_not_present(bsky, account_did, :mw)
     end
 
-    # check the profile description for presence of maga words and add to a list
+    # check the profile description for presence of hate words and add to a list
     def check_hate_words(bsky, account_did)
       return unless @did_profiles[account_did].key? "description"
+      return unless match_dhd?(account_did, @hate_words)
 
-      description = @did_profiles[account_did]["description"]
-      handle = @did_profiles[account_did]["handle"]
-      display_name = @did_profiles[account_did]["displayName"]
-      return unless @hate_words.any? do |w|
-        description =~ /#{w}\W/i ||
-        handle =~ /#{w}\W/i ||
-        display_name =~ /#{w}\W/i
-      end
+      puts "Adding #{account_did} contains hate_words"
+      add_user_to_list_if_not_present(bsky, account_did, :hw)
+    end
 
-      puts "Adding #{account_did} contains hate_words in #{handle} / #{display_name} / #{description}"
-      add_user_to_list(bsky, account_did, @list_uris[:hw])
+    # check profile for presence of porn words and add to a list
+    def check_porn_words(bsky, account_did)
+      return unless @did_profiles[account_did].key? "description"
+      return unless match_dhd?(account_did, @porn_words)
+
+      puts "Adding #{account_did} contains porn_words"
+      add_user_to_list_if_not_present(bsky, account_did, :pw)
     end
 
     # Create list maintainer threads when needed
@@ -128,6 +148,7 @@ module BskyProlificFollowers
               check_zero_width_space(bsky, listadd_did)
               check_maga_words(bsky, listadd_did)
               check_hate_words(bsky, listadd_did)
+              check_porn_words(bsky, listadd_did)
             rescue Minisky::ExpiredTokenError => e
               puts(e.full_message)
               bsky = Minisky.new("bsky.social", "creds.yml")
@@ -168,6 +189,10 @@ module BskyProlificFollowers
                 puts e
               rescue Net::OpenTimeout => e
                 puts(e.full_message)
+                bsky = Minisky.new("public.api.bsky.app", nil)
+                retry
+              rescue Socket::ResolutionError
+                puts "DNS resolution error"
                 bsky = Minisky.new("public.api.bsky.app", nil)
                 retry
               end
@@ -255,9 +280,26 @@ module BskyProlificFollowers
       puts "list_uri is #{@list_uris[list_id]}"
     end
 
-    def create_lists
+    def read_list_entries(bsky, list_symbol)
+      puts "Reading list entries for #{list_symbol}"
+      list_entries = bsky.fetch_all("app.bsky.graph.getList",
+                                    { list: @list_uris[list_symbol] },
+                                    field: "items")
+      list_members = Concurrent::Array.new
+      list_entries.each do |v|
+        list_members << v["subject"]["did"]
+      end
+      list_members
+    end
+
+    def load_lists
       bsky = Minisky.new("bsky.social", "creds.yml")
-      @blocklists.each_key { |l| create_list_if_missing(bsky, l) }
+      bsky_public = Minisky.new("public.api.bsky.app", nil)
+      @blocklists.each_key do |l|
+        create_list_if_missing(bsky, l)
+        @blocklists[l][:entries] = read_list_entries(bsky_public, l)
+        puts "@blocklists[#{l}][:entries].length = #{@blocklists[l][:entries].length}"
+      end
     end
 
     def dump_cache
@@ -286,7 +328,7 @@ module BskyProlificFollowers
     # run the firehose listener
     def run
       puts "@hate_words = #{@hate_words}"
-      create_lists
+      load_lists
       load_cache
       @did_profiles.each_key { |k| @did_listadd_queue.push(k) }
       create_maintainer_helpers_timer
