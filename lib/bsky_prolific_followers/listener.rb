@@ -11,7 +11,8 @@ require "zlib"
 module BskyProlificFollowers
   # BskyProlificFollowers::Listener - firehose listener
   class Listener
-    def initialize(num_profile_resolvers = 25, num_list_maintainers = 5, num_profile_schedulers = 1)
+    def initialize(num_profile_resolvers: 25, num_list_maintainers: 5, num_profile_schedulers: 1, verbose: false)
+      @verbose = verbose
       @did_query_queue = Queue.new
       @did_listadd_queue = Queue.new
       @did_schedule_queue = Queue.new
@@ -29,7 +30,7 @@ module BskyProlificFollowers
       @blocklists[:pw] =
         { name: "PornWords", description: "Profiles with porn terms in the description or account name" }
       @list_uris = Concurrent::Map.new
-      @profile_schedulers = Concurrent::Array.new(num_profile_resolvers)
+      @profile_schedulers = Concurrent::Array.new(num_profile_schedulers)
       @profile_resolvers = Concurrent::Array.new(num_profile_resolvers)
       @list_maintainers = Concurrent::Array.new(num_list_maintainers)
       @cache_path = "cache.json.gz"
@@ -97,9 +98,9 @@ module BskyProlificFollowers
       handle = @did_profiles[account_did]["handle"]
       display_name = @did_profiles[account_did]["displayName"]
       return false unless words.any? do |w|
-        description =~ /#{w}\W/i ||
-        handle =~ /#{w}\W/i ||
-        display_name =~ /#{w}\W/i
+        description =~ /\W#{w}\W/i ||
+        handle =~ /\W#{w}\W/i ||
+        display_name =~ /\W#{w}\W/i
       end
 
       true
@@ -357,6 +358,48 @@ module BskyProlificFollowers
       rescue Interrupt
         dump_cache
       end
+    end
+
+    def remove_user_from_list(bsky, user_did, list_uri)
+      entries = bsky.fetch_all("app.bsky.graph.getList",
+                               { list: list_uri },
+                               field: "items")
+
+      unless entries.any? { |e| e["subject"]["did"] == user_did }
+        puts "ERROR: user_did #{user_did} not found on list #{list_uri}"
+        exit 1
+      end
+      # did:plc:e2ud5if7wvdhp2kysdwgz2l6 "handle"=>"bosswoman.bsky.social"
+      print "Removing user #{user_did} from list #{list_uri}"
+      entries.each do |entry|
+        next unless entry["subject"]["did"] == user_did
+
+        bsky.post_request("com.atproto.repo.deleteRecord", {
+                            repo: bsky.user.did,
+                            collection: "app.bsky.graph.listitem",
+                            rkey: entry["uri"].split("/")[-1]
+                          })
+        break
+      end
+      puts " (complete)"
+    end
+
+    def run_remove_user_from_list(user:, list:)
+      bsky = Minisky.new("bsky.social", "creds.yml")
+      account_lists = get_account_lists(bsky)
+      list_uri = nil
+      account_lists.each { |l| list_uri = l["uri"] if l["name"] == list }
+
+      if list_uri.nil?
+        puts "ERROR: no list found matching #{list}"
+        exit 1
+      end
+      puts "list_uri = #{list_uri}"
+
+      resolver = DIDKit::Resolver.new
+      user_did = resolver.resolve_handle(user).did
+      puts "user_did = #{user_did}"
+      remove_user_from_list(bsky, user_did, list_uri)
     end
   end
 end
