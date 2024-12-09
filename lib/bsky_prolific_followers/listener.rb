@@ -326,6 +326,16 @@ module BskyProlificFollowers
       puts "Loaded #{@did_profiles.keys.length} profiles"
     end
 
+    def clear_queues
+      @did_listadd_queue.clear
+      @did_query_queue.clear
+      @did_schedule_queue.clear
+    end
+
+    def exit_threads
+      (@profile_resolvers + @profile_schedulers + @list_maintainers).each(&:exit)
+    end
+
     # run the firehose listener
     def run
       puts "@hate_words = #{@hate_words}"
@@ -356,6 +366,8 @@ module BskyProlificFollowers
       begin
         sky.connect
       rescue Interrupt
+        clear_queues
+        exit_threads
         dump_cache
       end
     end
