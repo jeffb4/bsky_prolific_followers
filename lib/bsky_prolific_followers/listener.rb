@@ -227,7 +227,7 @@ module BskyProlificFollowers
           loop do
             lookup_did = @did_query_queue.pop
             if cache_did_profile_exists?(lookup_did)
-              puts "Resolver received cached DID #{lookup_did}"
+              puts "Resolver received cached DID #{lookup_did}" if @verbose
             else
               begin
                 puts "Retrieving uncached DID profile #{lookup_did}" if @verbose
