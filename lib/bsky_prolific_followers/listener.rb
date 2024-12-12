@@ -6,18 +6,43 @@ require "didkit"
 require "json"
 require "minisky"
 require "skyfall"
+require "sqlite3"
 require "zlib"
 
 module BskyProlificFollowers
   # BskyProlificFollowers::Listener - firehose listener
   class Listener
-    def initialize(num_profile_resolvers: 25, num_list_maintainers: 5, num_profile_schedulers: 1, verbose: false)
-      @verbose = verbose
+    def hydrate_db
+      @cache_path = "cache.json.gz"
+      return unless File.exist?(@cache_path)
+
+      puts "Loading #{@cache_path}"
+
+      did_profiles_local = {}
+      Zlib::GzipReader.open(@cache_path) do |f|
+        did_profiles_local = JSON.parse(f.read)
+      end
+      upsert_cache_stmt = @cache_db.prepare "INSERT INTO profiles VALUES (:did, :profile)"
+      # hydrate did_profiles from JSON data, skipping nil (unretrieved) entries
+      puts "Hydrating"
+      did_profiles_local.each { |k, v| upsert_cache_stmt.execute("did" => k, "profile" => JSON.generate(v)) }
+    end
+
+    def init_db
+      raise RuntimeError unless SQLite3.threadsafe?
+
+      @cache_db = SQLite3::Database.new "cache.db"
+      @cache_db.execute "CREATE TABLE IF NOT EXISTS profiles (did TEXT PRIMARY KEY, profile TEXT)"
+      hydrate_db
+    end
+
+    def init_queues
       @did_query_queue = Queue.new
       @did_listadd_queue = Queue.new
       @did_schedule_queue = Queue.new
-      @did_profiles = Concurrent::Map.new
-      @follows_limit = 5000
+    end
+
+    def init_blocklists
       @blocklists = Concurrent::Map.new
       @blocklists[:over5k] = { name: "Over5K", description: "Accounts that follow more than 5k accounts" }
       @blocklists[:zws] =
@@ -29,14 +54,22 @@ module BskyProlificFollowers
         { name: "HateWords", description: "Profiles with hateful terms in the description or account name" }
       @blocklists[:pw] =
         { name: "PornWords", description: "Profiles with porn terms in the description or account name" }
+      @maga_words = load_words("maga_words.txt")
+      @hate_words = load_words "hate_words.txt"
+      @porn_words = load_words "porn_words.txt"
+    end
+
+    def initialize(num_profile_resolvers: 30, num_list_maintainers: 5, num_profile_schedulers: 1, verbose: false)
+      @verbose = verbose
+      init_db
+      init_queues
+      init_blocklists
+      @did_profiles = Concurrent::Map.new
+      @follows_limit = 5000
       @list_uris = Concurrent::Map.new
       @profile_schedulers = Concurrent::Array.new(num_profile_schedulers)
       @profile_resolvers = Concurrent::Array.new(num_profile_resolvers)
       @list_maintainers = Concurrent::Array.new(num_list_maintainers)
-      @cache_path = "cache.json.gz"
-      @maga_words = load_words("maga_words.txt")
-      @hate_words = load_words "hate_words.txt"
-      @porn_words = load_words "porn_words.txt"
     end
 
     def load_words(filename)
@@ -61,9 +94,10 @@ module BskyProlificFollowers
 
     def add_user_to_list_if_not_present(bsky, account_did, list_sym)
       if @blocklists[list_sym][:entries].include? account_did
-        puts "@blocklists[#{list_sym}][:entries].include? #{account_did}"
+        puts "@blocklists[#{list_sym}][:entries].include? #{account_did}" if @verbose
         return
       end
+      puts "Adding #{account_did} to @blocklists[#{list_sym}][:entries] (len=#{@blocklists[list_sym][:entries].length})"
 
       add_user_to_list(bsky, account_did, @list_uris[list_sym])
 
@@ -71,32 +105,32 @@ module BskyProlificFollowers
     end
 
     # check the follows on a profile and add to a list if appropriate
-    def check_follows(bsky, account_did)
-      follows_count = @did_profiles[account_did]["followsCount"]
+    def check_follows(bsky, profile)
+      follows_count = profile["followsCount"]
       return if follows_count <= @follows_limit
 
-      puts "Adding #{account_did} (#{follows_count} > #{@follows_limit})"
-      add_user_to_list_if_not_present(bsky, account_did, :over5k)
+      puts "Adding #{profile["did"]} (#{follows_count} > #{@follows_limit})" if @verbose
+      add_user_to_list_if_not_present(bsky, profile["did"], :over5k)
     end
 
     # check the profile descript for zero width space (U+200b) and add to a list
-    def check_zero_width_space(bsky, account_did)
+    def check_zero_width_space(bsky, profile)
       # puts "Null ZWS check (#{account_did})"
-      return unless @did_profiles[account_did].key? "description"
+      return unless profile.key? "description"
 
-      description = @did_profiles[account_did]["description"]
+      description = profile["description"]
       # return unless description.include?("\u200b")
       return unless description =~ /[\u200B-\u200D]/
       return unless description =~ /\u200B/
 
-      puts "Adding #{account_did} contains zws in #{@did_profiles[account_did]["description"]}"
-      add_user_to_list_if_not_present(bsky, account_did, :zws)
+      puts "Adding #{profile["did"]} contains zws in #{profile["description"]}" if @verbose
+      add_user_to_list_if_not_present(bsky, profile["did"], :zws)
     end
 
-    def match_dhd?(account_did, words)
-      description = @did_profiles[account_did]["description"]
-      handle = @did_profiles[account_did]["handle"]
-      display_name = @did_profiles[account_did]["displayName"]
+    def match_dhd?(profile, words)
+      description = profile["description"]
+      handle = profile["handle"]
+      display_name = profile["displayName"]
       return false unless words.any? do |w|
         description =~ /\W#{w}\W/i ||
         handle =~ /\W#{w}\W/i ||
@@ -107,30 +141,39 @@ module BskyProlificFollowers
     end
 
     # check the profile description for presence of maga words and add to a list
-    def check_maga_words(bsky, account_did)
-      return unless @did_profiles[account_did].key? "description"
-      return unless match_dhd?(account_did, @maga_words)
+    def check_maga_words(bsky, profile)
+      return unless profile.key? "description"
+      return unless match_dhd?(profile, @maga_words)
 
-      puts "Adding #{account_did} contains maga_words"
-      add_user_to_list_if_not_present(bsky, account_did, :mw)
+      puts "Adding #{profile["did"]} contains maga_words" if @verbose
+      add_user_to_list_if_not_present(bsky, profile["did"], :mw)
     end
 
     # check the profile description for presence of hate words and add to a list
-    def check_hate_words(bsky, account_did)
-      return unless @did_profiles[account_did].key? "description"
-      return unless match_dhd?(account_did, @hate_words)
+    def check_hate_words(bsky, profile)
+      return unless profile.key? "description"
+      return unless match_dhd?(profile, @hate_words)
 
-      puts "Adding #{account_did} contains hate_words"
-      add_user_to_list_if_not_present(bsky, account_did, :hw)
+      puts "Adding #{profile["did"]} contains hate_words" if @verbose
+      add_user_to_list_if_not_present(bsky, profile["did"], :hw)
     end
 
     # check profile for presence of porn words and add to a list
-    def check_porn_words(bsky, account_did)
-      return unless @did_profiles[account_did].key? "description"
-      return unless match_dhd?(account_did, @porn_words)
+    def check_porn_words(bsky, profile)
+      return unless profile.key? "description"
+      return unless match_dhd?(profile, @porn_words)
 
-      puts "Adding #{account_did} contains porn_words"
-      add_user_to_list_if_not_present(bsky, account_did, :pw)
+      puts "Adding #{profile["did"]} contains porn_words" if @verbose
+      add_user_to_list_if_not_present(bsky, profile["did"], :pw)
+    end
+
+    def cache_get_profile(did)
+      profile_json = @cache_db.execute("SELECT profile FROM profiles WHERE did=?", did)
+      # puts "Got profile #{profile_json}"
+      return nil unless profile_json[0]
+      return nil if profile_json[0][0] == "null"
+
+      JSON.parse(profile_json[0][0])
     end
 
     # Create list maintainer threads when needed
@@ -145,11 +188,14 @@ module BskyProlificFollowers
           loop do
             listadd_did = @did_listadd_queue.pop
             begin
-              check_follows(bsky, listadd_did)
-              check_zero_width_space(bsky, listadd_did)
-              check_maga_words(bsky, listadd_did)
-              check_hate_words(bsky, listadd_did)
-              check_porn_words(bsky, listadd_did)
+              profile = cache_get_profile(listadd_did)
+              next unless profile
+
+              check_follows(bsky, profile)
+              check_zero_width_space(bsky, profile)
+              check_maga_words(bsky,  profile)
+              check_hate_words(bsky,  profile)
+              check_porn_words(bsky,  profile)
             rescue Minisky::ExpiredTokenError => e
               puts(e.full_message)
               bsky = Minisky.new("bsky.social", "creds.yml")
@@ -163,6 +209,15 @@ module BskyProlificFollowers
       end
     end
 
+    def cache_save_profile(did, profile)
+      puts "Saving profile for #{did}" if @verbose
+      raise "Attempted to upsert #{did} #{profile}" if profile == "null"
+
+      @cache_db.execute("INSERT INTO profiles (did, profile) VALUES (?,?) " \
+      "ON CONFLICT(did) DO UPDATE SET profile=excluded.profile",
+                        [did, JSON.dump(profile)])
+    end
+
     def create_profile_resolvers
       @profile_resolvers.map! do |thr|
         next thr unless thr.nil? || thr.status.nil?
@@ -171,19 +226,17 @@ module BskyProlificFollowers
           bsky = Minisky.new("public.api.bsky.app", nil)
           loop do
             lookup_did = @did_query_queue.pop
-            if @did_profiles.key?(lookup_did) && !@did_profiles[lookup_did].nil?
+            if cache_did_profile_exists?(lookup_did)
               puts "Resolver received cached DID #{lookup_did}"
             else
               begin
-                # puts "Retrieving uncached DID profile #{lookup_did}"
+                puts "Retrieving uncached DID profile #{lookup_did}" if @verbose
                 profile = bsky.get_request(
                   "app.bsky.actor.getProfile",
-                  {
-                    actor: lookup_did
-                  }
+                  { actor: lookup_did }
                 )
                 profile["cachedAt"] = DateTime.now.iso8601
-                @did_profiles[lookup_did] = profile
+                cache_save_profile(lookup_did, profile)
                 # puts "(new) #{profile}"
                 @did_listadd_queue.push(lookup_did)
               rescue Minisky::ClientErrorResponse => e
@@ -203,6 +256,17 @@ module BskyProlificFollowers
       end
     end
 
+    def cache_did_profile_exists?(did)
+      profile_did = @cache_db.execute("SELECT profile FROM profiles WHERE did=?", did)
+      return false if profile_did.nil?
+
+      return false unless profile_did && profile_did[0]
+
+      return false if profile_did[0][0] == "null"
+
+      true
+    end
+
     def create_profile_schedulers
       @profile_schedulers.map! do |thr|
         next thr unless thr.nil? || thr.status.nil?
@@ -210,11 +274,18 @@ module BskyProlificFollowers
         Thread.new do
           loop do
             firehose_did = @did_schedule_queue.pop
-            if @did_profiles.key?(firehose_did)
-              # puts "Received cached DID #{firehose_did}"
+            if cache_did_profile_exists?(firehose_did)
+              profile = cache_get_profile(firehose_did)
+              if profile.nil?
+                print "cache_profile_exists? but nil: #{firehose_did} "
+                puts @cache_db.execute("SELECT profile FROM profiles WHERE did=?", firehose_did)
+              elsif profile.has_key?("handle")
+                puts "Received cached DID #{firehose_did} #{profile["handle"]}" if @verbose
+              else
+                puts "(ERROR) Recieved cached DID #{firehose_did} #{profile}"
+              end
             else
-              # puts "Received uncached DID #{firehose_did}"
-              @did_profiles[firehose_did] = nil
+              puts "Received uncached DID #{firehose_did}" if @verbose
               @did_query_queue.push(firehose_did)
             end
           end
@@ -234,15 +305,15 @@ module BskyProlificFollowers
     end
 
     def debug_resolver_cache
+      puts "Starting resolver cache debug"
       Thread.new do
         loop do
           sleep 5
-          if @did_query_queue.length > 200
-            print "@did_query_queue.length = #{@did_query_queue.length} "
-            puts "@did_listadd_queue.length = #{@did_listadd_queue.length}"
-          end
-          did_profiles_local = {}
-          @did_profiles.each { |k, v| did_profiles_local[k] = v.dup }
+          # if @did_query_queue.length > 0
+          print "@did_schedule_queue.length = #{@did_schedule_queue.length} "
+          print "@did_query_queue.length = #{@did_query_queue.length} "
+          puts "@did_listadd_queue.length = #{@did_listadd_queue.length}"
+          # end
           # puts did_profiles_local
         end
       end
@@ -303,15 +374,6 @@ module BskyProlificFollowers
       end
     end
 
-    def dump_cache
-      puts "Dumping cache to #{@cache_path}"
-      did_profiles_local = {}
-      @did_profiles.each { |k, v| did_profiles_local[k] = v.dup }
-      Zlib::GzipWriter.open(@cache_path) do |f|
-        f << did_profiles_local.to_json
-      end
-    end
-
     def load_cache
       return unless File.exist?(@cache_path)
 
@@ -336,12 +398,17 @@ module BskyProlificFollowers
       (@profile_resolvers + @profile_schedulers + @list_maintainers).each(&:exit)
     end
 
+    def queue_cache_rescan
+      @cache_db.execute("SELECT did FROM profiles") do |row|
+        @did_listadd_queue.push(row[0])
+      end
+    end
+
     # run the firehose listener
     def run
       puts "@hate_words = #{@hate_words}"
       load_lists
-      load_cache
-      @did_profiles.each_key { |k| @did_listadd_queue.push(k) }
+      queue_cache_rescan
       create_maintainer_helpers_timer
       debug_resolver_cache
 
@@ -368,8 +435,8 @@ module BskyProlificFollowers
       rescue Interrupt
         clear_queues
         exit_threads
-        dump_cache
       end
+      @cache_db.close
     end
 
     def remove_user_from_list(bsky, user_did, list_uri)

@@ -15,3 +15,5 @@ creds.yml
 /sorbet/
 
 cache.json.gz
+
+cache.db*
