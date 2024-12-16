@@ -44,7 +44,12 @@ module BskyProlificFollowers
 
     def init_blocklists
       @blocklists = Concurrent::Map.new
-      @blocklists[:over5k] = { name: "Over5K", description: "Accounts that follow more than 5k accounts" }
+      @blocklists[:over5k] =
+        { name: "Over5K", description: "Accounts that follow more than 5k accounts", threshold: 5000 }
+      @blocklists[:over7k] =
+        { name: "Over7K", description: "Accounts that follow more than 7k accounts", threshold: 7000 }
+      @blocklists[:over10k] =
+        { name: "Over10K", description: "Accounts that follow more than 10k accounts", threshold: 10_000 }
       @blocklists[:zws] =
         { name: "ZeroWidthSpace",
           description: "Accounts with descriptions containing suspicious zero width spaces and the like" }
@@ -107,10 +112,13 @@ module BskyProlificFollowers
     # check the follows on a profile and add to a list if appropriate
     def check_follows(bsky, profile)
       follows_count = profile["followsCount"]
-      return if follows_count <= @follows_limit
-
-      puts "Adding #{profile["did"]} (#{follows_count} > #{@follows_limit})" if @verbose
-      add_user_to_list_if_not_present(bsky, profile["did"], :over5k)
+      %i[over5k over7k over10k].each do |list_symbol|
+        follow_limit = @blocklists[list_symbol][:threshold]
+        if follows_count >= follow_limit
+          puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
+          add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
+        end
+      end
     end
 
     # check the profile descript for zero width space (U+200b) and add to a list
@@ -463,7 +471,7 @@ module BskyProlificFollowers
       puts " (complete)"
     end
 
-    def run_remove_user_from_list(user:, list:)
+    def run_remove_user_from_list(user:, list:, verbose:)
       bsky = Minisky.new("bsky.social", "creds.yml")
       account_lists = get_account_lists(bsky)
       list_uri = nil
@@ -473,11 +481,11 @@ module BskyProlificFollowers
         puts "ERROR: no list found matching #{list}"
         exit 1
       end
-      puts "list_uri = #{list_uri}"
+      puts "list_uri = #{list_uri}" if verbose
 
       resolver = DIDKit::Resolver.new
       user_did = resolver.resolve_handle(user).did
-      puts "user_did = #{user_did}"
+      puts "user_did = #{user_did}" if verbose
       remove_user_from_list(bsky, user_did, list_uri)
     end
   end
