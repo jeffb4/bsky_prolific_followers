@@ -448,15 +448,15 @@ module BskyProlificFollowers
     end
 
     def remove_user_from_list(bsky, user_did, list_uri)
-      entries = bsky.fetch_all("app.bsky.graph.getList",
-                               { list: list_uri },
-                               field: "items")
+      bsky_public = Minisky.new("public.api.bsky.app", nil)
+      entries = bsky_public.fetch_all("app.bsky.graph.getList",
+                                      { list: list_uri },
+                                      field: "items")
 
       unless entries.any? { |e| e["subject"]["did"] == user_did }
         puts "ERROR: user_did #{user_did} not found on list #{list_uri}"
         exit 1
       end
-      # did:plc:e2ud5if7wvdhp2kysdwgz2l6 "handle"=>"bosswoman.bsky.social"
       print "Removing user #{user_did} from list #{list_uri}"
       entries.each do |entry|
         next unless entry["subject"]["did"] == user_did
