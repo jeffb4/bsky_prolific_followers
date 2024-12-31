@@ -295,6 +295,14 @@ module BskyProlificFollowers
       true
     end
 
+    # cache_skip_profile_fetch?(did) - determine whether a given profile exists and is fresh enough
+    # to skip retrieval, now
+    def cache_skip_profile_fetch?(did)
+      cache_did_profile_exists?(did) && cache_fresh?(did)
+    end
+
+    # create_profile_schedulers - create threads that watch @did_schedule_queue for DIDs seen on the
+    # firehose and determines whether to queue a profile lookup
     def create_profile_schedulers
       @profile_schedulers.map! do |thr|
         next thr unless thr.nil? || thr.status.nil?
@@ -302,7 +310,7 @@ module BskyProlificFollowers
         Thread.new do
           loop do
             firehose_did = @did_schedule_queue.pop
-            if cache_did_profile_exists?(firehose_did)
+            if cache_skip_profile_fetch?(firehose_did)
               profile = cache_get_profile(firehose_did)
               if profile.nil?
                 print "cache_profile_exists? but nil: #{firehose_did} "
