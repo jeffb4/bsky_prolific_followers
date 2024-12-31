@@ -254,7 +254,10 @@ module BskyProlificFollowers
           bsky = Minisky.new("public.api.bsky.app", nil)
           loop do
             lookup_did = @did_query_queue.pop
-            if cache_did_profile_exists?(lookup_did)
+            # Recheck on whether we should skip profile fetch - it's possible a did was reentered into
+            # resolver queue before it was fetched, so profile schedulers shouldn't necessarily be
+            # trusted
+            if cache_skip_profile_fetch?(lookup_did)
               puts "Resolver received cached DID #{lookup_did}" if @verbose
             else
               begin
