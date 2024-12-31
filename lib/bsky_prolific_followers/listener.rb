@@ -452,6 +452,16 @@ module BskyProlificFollowers
       @cache_db.close
     end
 
+    # remove_rkey_from_lists - remove a given rkey from lists
+    def remove_rkey_from_lists(bsky, rkey)
+      bsky.post_request("com.atproto.repo.deleteRecord", {
+                          repo: bsky.user.did,
+                          collection: "app.bsky.graph.listitem",
+                          rkey: rkey
+                        })
+    end
+
+    # remove_user_from_list - remove a given account DID from a list by URI
     def remove_user_from_list(bsky, user_did, list_uri)
       bsky_public = Minisky.new("public.api.bsky.app", nil)
       entries = bsky_public.fetch_all("app.bsky.graph.getList",
@@ -462,15 +472,12 @@ module BskyProlificFollowers
         puts "ERROR: user_did #{user_did} not found on list #{list_uri}"
         exit 1
       end
+
       print "Removing user #{user_did} from list #{list_uri}"
       entries.each do |entry|
         next unless entry["subject"]["did"] == user_did
 
-        bsky.post_request("com.atproto.repo.deleteRecord", {
-                            repo: bsky.user.did,
-                            collection: "app.bsky.graph.listitem",
-                            rkey: entry["uri"].split("/")[-1]
-                          })
+        remove_rkey_from_lists(bsky, entry["uri"].split("/")[-1])
         break
       end
       puts " (complete)"
