@@ -453,10 +453,23 @@ module BskyProlificFollowers
       end
     end
 
+    # queue_lists_rescan - requeue all list entries to scan
+    def queue_lists_rescan
+      blocklist_dids = []
+      @blocklists.each_key do |l|
+        @blocklists[l][:entries].each do |e|
+          blocklist_dids << e[:did]
+        end
+      end
+      blocklist_dids.uniq! # remove duplicates from what we'll be scanning
+      blocklist_dids.each { |e| @did_query_queue.push(e) }
+    end
+
     # run the firehose listener
     def run
       puts "@hate_words = #{@hate_words}"
       load_lists
+      queue_lists_rescan
       queue_cache_rescan
       create_maintainer_helpers_timer
       debug_resolver_cache
