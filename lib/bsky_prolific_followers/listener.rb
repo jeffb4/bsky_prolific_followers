@@ -158,7 +158,8 @@ module BskyProlificFollowers
       end
       description = profile["description"]
       # return unless description.include?("\u200b")
-      unless description =~ /[\u200B-\u200D]/
+      # unless description =~ /[\u200B-\u200D]/
+      unless description =~ /\u200B/
         remove_user_from_list_if_present(bsky, profile["did"], :zws)
         return
       end
