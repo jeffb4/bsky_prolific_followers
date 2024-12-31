@@ -151,21 +151,7 @@ module BskyProlificFollowers
 
     # check the profile descript for zero width space (U+200b) and add to a list
     def check_zero_width_space(bsky, profile)
-      # puts "Null ZWS check (#{account_did})"
-      unless profile.key? "description"
-        remove_user_from_list_if_present(bsky, profile["did"], :zws)
-        return
-      end
-      description = profile["description"]
-      # return unless description.include?("\u200b")
-      # unless description =~ /[\u200B-\u200D]/
-      unless description =~ /\u200B/
-        remove_user_from_list_if_present(bsky, profile["did"], :zws)
-        return
-      end
-
-      puts "Adding #{profile["did"]} contains zws in #{profile["description"]}" if @verbose
-      add_user_to_list_if_not_present(bsky, profile["did"], :zws)
+      remove_user_from_list_if_present(bsky, profile["did"], :zws)
     end
 
     # match_dhd? does a profile description, handle, or displayName match an array of words?
