@@ -45,11 +45,17 @@ module BskyProlificFollowers
     def init_blocklists
       @blocklists = Concurrent::Map.new
       @blocklists[:over5k] =
-        { name: "Over5K", description: "Accounts that follow more than 5k accounts", threshold: 5000 }
+        { name: "Over5K", description: "Accounts that follow more than 5k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", threshold: 5000 }
       @blocklists[:over7k] =
-        { name: "Over7K", description: "Accounts that follow more than 7k accounts", threshold: 7000 }
+        { name: "Over7K", description: "Accounts that follow more than 7k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", threshold: 7000 }
       @blocklists[:over10k] =
-        { name: "Over10K", description: "Accounts that follow more than 10k accounts", threshold: 10_000 }
+        { name: "Over10K", description: "Accounts that follow more than 10k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", threshold: 10_000 }
       @blocklists[:zws] =
         { name: "ZeroWidthSpace",
           description: "Accounts with descriptions containing suspicious zero width spaces and the like" }
@@ -59,7 +65,7 @@ module BskyProlificFollowers
         { name: "HateWords", description: "Profiles with hateful terms in the description or account name" }
       @blocklists[:pw] =
         { name: "PornWords", description: "Profiles with porn terms in the description or account name" }
-      @maga_words = load_words("maga_words.txt")
+      @maga_words = load_words "maga_words.txt"
       @hate_words = load_words "hate_words.txt"
       @porn_words = load_words "porn_words.txt"
     end
