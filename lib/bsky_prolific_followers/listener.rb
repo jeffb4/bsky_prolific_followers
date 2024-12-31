@@ -261,11 +261,8 @@ module BskyProlificFollowers
               puts "Resolver received cached DID #{lookup_did}" if @verbose
             else
               begin
-                puts "Retrieving uncached DID profile #{lookup_did}" if @verbose
-                profile = bsky.get_request(
-                  "app.bsky.actor.getProfile",
-                  { actor: lookup_did }
-                )
+                puts "Retrieving uncached/unfresh DID profile #{lookup_did}" if @verbose
+                profile = get_profile(lookup_did)
                 profile["cachedAt"] = DateTime.now.iso8601
                 cache_save_profile(lookup_did, profile)
                 # puts "(new) #{profile}"
