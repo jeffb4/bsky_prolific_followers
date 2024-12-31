@@ -231,6 +231,21 @@ module BskyProlificFollowers
                         [did, JSON.dump(profile)])
     end
 
+    # cache_fresh?(did) - determine whether a cached profile DID is fresh enough (has been cached in the last hour)
+    def cache_fresh?(did)
+      ((DateTime.now - DateTime.iso8601(cache_get_profile(did)["cachedAt"])) * 86_400) < 3600
+    end
+
+    # get_profile(did) - query bsky using the public cached endpoint for a profile
+    def get_profile(did)
+      bsky = Minisky.new("public.api.bsky.app", nil)
+      bsky.get_request(
+        "app.bsky.actor.getProfile",
+        { actor: did }
+      )
+    end
+
+    # create_profile_resolvers - create threads that read from @did_query_queue and resolve profiles
     def create_profile_resolvers
       @profile_resolvers.map! do |thr|
         next thr unless thr.nil? || thr.status.nil?
