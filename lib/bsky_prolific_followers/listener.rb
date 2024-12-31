@@ -413,7 +413,7 @@ module BskyProlificFollowers
 
     def queue_cache_rescan
       @cache_db.execute("SELECT did FROM profiles") do |row|
-        @did_listadd_queue.push(row[0])
+        @did_query_queue.push(row[0])
       end
     end
 
