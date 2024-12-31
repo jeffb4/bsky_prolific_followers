@@ -437,20 +437,6 @@ module BskyProlificFollowers
       end
     end
 
-    def load_cache
-      return unless File.exist?(@cache_path)
-
-      puts "Loading #{@cache_path}"
-
-      did_profiles_local = {}
-      Zlib::GzipReader.open(@cache_path) do |f|
-        did_profiles_local = JSON.parse(f.read)
-      end
-      # hydrate did_profiles from JSON data, skipping nil (unretrieved) entries
-      did_profiles_local.each { |k, v| @did_profiles[k] = v.dup unless v.nil? }
-      puts "Loaded #{@did_profiles.keys.length} profiles"
-    end
-
     def clear_queues
       @did_listadd_queue.clear
       @did_query_queue.clear
