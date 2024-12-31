@@ -99,16 +99,39 @@ module BskyProlificFollowers
                         })
     end
 
+    def did_present_in_list?(did, list_sym)
+      @blocklists[list_sym][:entries].any? { |e| e[:did] == did }
+    end
+
     def add_user_to_list_if_not_present(bsky, account_did, list_sym)
-      if @blocklists[list_sym][:entries].include? account_did
+      if did_present_in_list?(account_did, list_sym)
         puts "@blocklists[#{list_sym}][:entries].include? #{account_did}" if @verbose
         return
       end
       puts "Adding #{account_did} to @blocklists[#{list_sym}][:entries] (len=#{@blocklists[list_sym][:entries].length})"
 
-      add_user_to_list(bsky, account_did, @list_uris[list_sym])
+      entry_rkey = add_user_to_list(bsky, account_did, @list_uris[list_sym])["uri"].split("/")[-1]
 
-      @blocklists[list_sym][:entries] << account_did
+      @blocklists[list_sym][:entries] << { did: account_did, rkey: entry_rkey }
+    end
+
+    def remove_user_from_list_if_present(bsky, account_did, list_sym)
+      @blocklists[list_sym][:entries].filter! do |entry|
+        next true unless entry[:did] == account_did
+
+        puts "Removing #{account_did} from @blocklists[#{list_sym}][:entries] " \
+            "(len=#{@blocklists[list_sym][:entries].length})"
+        remove_rkey_from_lists(bsky, entry[:rkey])
+        false
+      end
+    end
+
+    # remove_user_from_all_lists - remove an account did from all lists (suspended, no longer exists)
+    def remove_user_from_all_lists(bsky, account_did)
+      puts "Removing user #{account_did} from all lists" if @verbose
+      @list_uris.each_key do |list_sym|
+        remove_user_from_list_if_present(bsky, account_did, list_sym)
+      end
     end
 
     # check the follows on a profile and add to a list if appropriate
@@ -119,6 +142,9 @@ module BskyProlificFollowers
         if follows_count >= follow_limit
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
           add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
+        else
+          puts "Removing #{profile["did"]} (#{follows_count} < #{follows_limit})" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
         end
       end
     end
@@ -126,12 +152,16 @@ module BskyProlificFollowers
     # check the profile descript for zero width space (U+200b) and add to a list
     def check_zero_width_space(bsky, profile)
       # puts "Null ZWS check (#{account_did})"
-      return unless profile.key? "description"
-
+      unless profile.key? "description"
+        remove_user_from_list_if_present(bsky, profile["did"], :zws)
+        return
+      end
       description = profile["description"]
       # return unless description.include?("\u200b")
-      return unless description =~ /[\u200B-\u200D]/
-      return unless description =~ /\u200B/
+      unless description =~ /[\u200B-\u200D]/
+        remove_user_from_list_if_present(bsky, profile["did"], :zws)
+        return
+      end
 
       puts "Adding #{profile["did"]} contains zws in #{profile["description"]}" if @verbose
       add_user_to_list_if_not_present(bsky, profile["did"], :zws)
@@ -153,8 +183,10 @@ module BskyProlificFollowers
 
     # check the profile description for presence of maga words and add to a list
     def check_maga_words(bsky, profile)
-      return unless profile.key? "description"
-      return unless match_dhd?(profile, @maga_words)
+      unless profile.key?("description") && match_dhd?(profile, @maga_words)
+        remove_user_from_list_if_present(bsky, profile["did"], :mw)
+        return
+      end
 
       puts "Adding #{profile["did"]} contains maga_words" if @verbose
       add_user_to_list_if_not_present(bsky, profile["did"], :mw)
@@ -162,8 +194,10 @@ module BskyProlificFollowers
 
     # check the profile description for presence of hate words and add to a list
     def check_hate_words(bsky, profile)
-      return unless profile.key? "description"
-      return unless match_dhd?(profile, @hate_words)
+      unless profile.key?("description") && match_dhd?(profile, @hate_words)
+        remove_user_from_list_if_present(bsky, profile["did"], :hw)
+        return
+      end
 
       puts "Adding #{profile["did"]} contains hate_words" if @verbose
       add_user_to_list_if_not_present(bsky, profile["did"], :hw)
@@ -171,8 +205,10 @@ module BskyProlificFollowers
 
     # check profile for presence of porn words and add to a list
     def check_porn_words(bsky, profile)
-      return unless profile.key? "description"
-      return unless match_dhd?(profile, @porn_words)
+      unless profile.key?("description") && match_dhd?(profile, @maga_words)
+        remove_user_from_list_if_present(bsky, profile["did"], :pw)
+        return
+      end
 
       puts "Adding #{profile["did"]} contains porn_words" if @verbose
       add_user_to_list_if_not_present(bsky, profile["did"], :pw)
@@ -251,7 +287,6 @@ module BskyProlificFollowers
         next thr unless thr.nil? || thr.status.nil?
 
         Thread.new do
-          bsky = Minisky.new("public.api.bsky.app", nil)
           loop do
             lookup_did = @did_query_queue.pop
             # Recheck on whether we should skip profile fetch - it's possible a did was reentered into
@@ -268,14 +303,19 @@ module BskyProlificFollowers
                 # puts "(new) #{profile}"
                 @did_listadd_queue.push(lookup_did)
               rescue Minisky::ClientErrorResponse => e
-                puts e
+                bsky = Minisky.new("bsky.social", "creds.yml")
+                puts "ClientErrorResponse: #{e.status} : #{e.data}" if @verbose
+                case e.data["error"]
+                when "AccountDeactivated", "AccountTakedown"
+                  remove_user_from_all_lists(bsky, lookup_did)
+                when "InvalidRequest"
+                  remove_user_from_all_lists(bsky, lookup_did) if e.data["message"] == "Profile not found"
+                end
               rescue Net::OpenTimeout => e
                 puts(e.full_message)
-                bsky = Minisky.new("public.api.bsky.app", nil)
                 retry
               rescue Socket::ResolutionError
                 puts "DNS resolution error"
-                bsky = Minisky.new("public.api.bsky.app", nil)
                 retry
               end
             end
@@ -321,7 +361,7 @@ module BskyProlificFollowers
                 puts "(ERROR) Recieved cached DID #{firehose_did} #{profile}"
               end
             else
-              puts "Received uncached DID #{firehose_did}" if @verbose
+              puts "Received uncached/unfresh DID #{firehose_did}" if @verbose
               @did_query_queue.push(firehose_did)
             end
           end
@@ -395,7 +435,7 @@ module BskyProlificFollowers
                                     field: "items")
       list_members = Concurrent::Array.new
       list_entries.each do |v|
-        list_members << v["subject"]["did"]
+        list_members << { did: v["subject"]["did"], rkey: v["uri"].split("/")[-1] }
       end
       list_members
     end
