@@ -292,7 +292,7 @@ module BskyProlificFollowers
               if profile.nil?
                 print "cache_profile_exists? but nil: #{firehose_did} "
                 puts @cache_db.execute("SELECT profile FROM profiles WHERE did=?", firehose_did)
-              elsif profile.has_key?("handle")
+              elsif profile.key?("handle")
                 puts "Received cached DID #{firehose_did} #{profile["handle"]}" if @verbose
               else
                 puts "(ERROR) Recieved cached DID #{firehose_did} #{profile}"
