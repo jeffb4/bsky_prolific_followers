@@ -77,6 +77,7 @@ module BskyProlificFollowers
       @list_maintainers = Concurrent::Array.new(num_list_maintainers)
     end
 
+    # load_words - Read a file given by filename, and return each line as a stripped string
     def load_words(filename)
       words = []
       return unless File.exist?(filename)
@@ -87,6 +88,7 @@ module BskyProlificFollowers
       words.map(&:strip)
     end
 
+    # add_user_to_list - add a given account DID to a list by URI
     def add_user_to_list(bsky, account_did, list_uri)
       bsky.post_request("com.atproto.repo.createRecord", {
                           repo: bsky.user.did,
@@ -135,6 +137,7 @@ module BskyProlificFollowers
       add_user_to_list_if_not_present(bsky, profile["did"], :zws)
     end
 
+    # match_dhd? does a profile description, handle, or displayName match an array of words?
     def match_dhd?(profile, words)
       description = profile["description"]
       handle = profile["handle"]
@@ -175,6 +178,7 @@ module BskyProlificFollowers
       add_user_to_list_if_not_present(bsky, profile["did"], :pw)
     end
 
+    # Get an account DID from the local cache
     def cache_get_profile(did)
       profile_json = @cache_db.execute("SELECT profile FROM profiles WHERE did=?", did)
       # puts "Got profile #{profile_json}"
@@ -217,6 +221,7 @@ module BskyProlificFollowers
       end
     end
 
+    # cache_save_profile - upsert a profile to a given account DID in the local cache
     def cache_save_profile(did, profile)
       puts "Saving profile for #{did}" if @verbose
       raise "Attempted to upsert #{did} #{profile}" if profile == "null"
