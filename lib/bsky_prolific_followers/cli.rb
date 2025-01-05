@@ -14,7 +14,7 @@ module BskyProlificFollowers
 
     def run(argv = ARGV)
       puts("in BskyProlificFollowers::CLI::run #{argv}")
-      options = { verbose: false }
+      options = { verbose: false, expire: true }
 
       subtext = <<~HELP
         Commonly used command are:
@@ -37,6 +37,9 @@ module BskyProlificFollowers
           opts.banner = "Usage: run [options]"
           opts.on("-c", "--[no-]cache", "use cache file") do |v|
             options[:force] = v
+          end
+          opts.on("-x", "--[no-]expire-cache", "ignore cache entry age") do |v|
+            options[:expire] = !v
           end
         end,
         "remove-user" => OptionParser.new do |opts|
@@ -61,7 +64,7 @@ module BskyProlificFollowers
 
       listener = BskyProlificFollowers::Listener.new(verbose: options[:verbose])
       if command == "run"
-        listener.run
+        listener.run(expire: options[:expire])
       else
         listener.run_remove_user_from_list(user: options[:user], list: options[:list], verbose: options[:verbose])
       end

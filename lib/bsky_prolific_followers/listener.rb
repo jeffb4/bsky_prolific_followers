@@ -262,6 +262,8 @@ module BskyProlificFollowers
 
     # cache_fresh?(did) - determine whether a cached profile DID is fresh enough (has been cached in the last hour)
     def cache_fresh?(did)
+      return true if @cache_expire # if we are ignoring cache times, then the entry is fresh enough
+
       ((DateTime.now - DateTime.iso8601(cache_get_profile(did)["cachedAt"])) * 86_400) < 3600
     end
 
@@ -472,8 +474,11 @@ module BskyProlificFollowers
     end
 
     # run the firehose listener
-    def run
+    def run(expire: true)
       puts "@hate_words = #{@hate_words}"
+      puts "expire = #{expire}"
+      @cache_expire = expire
+      puts "@cache_expire = #{pp(@cache_expire)}"
       load_lists
       queue_lists_rescan
       queue_cache_rescan
