@@ -348,6 +348,7 @@ module BskyProlificFollowers
             if cache_skip_profile_fetch?(firehose_did)
               profile = cache_get_profile(firehose_did)
               if profile.nil?
+                # This is an error case that should not be reached if cache_skip_profile_fetch? is working correctly
                 print "cache_profile_exists? but nil: #{firehose_did} "
                 puts @cache_db.execute("SELECT profile FROM profiles WHERE did=?", firehose_did)
               elsif profile.key?("handle")
