@@ -198,7 +198,7 @@ module BskyProlificFollowers
 
     # check profile for presence of porn words and add to a list
     def check_porn_words(bsky, profile)
-      unless profile.key?("description") && match_dhd?(profile, @maga_words)
+      unless profile.key?("description") && match_dhd?(profile, @porn_words)
         remove_user_from_list_if_present(bsky, profile["did"], :pw)
         return
       end
