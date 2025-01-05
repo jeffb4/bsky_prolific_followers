@@ -460,7 +460,7 @@ module BskyProlificFollowers
 
     def queue_cache_rescan
       @cache_db.execute("SELECT did FROM profiles") do |row|
-        @did_query_queue.push(row[0])
+        @did_schedule_queue.push(row[0])
       end
     end
 
@@ -473,7 +473,7 @@ module BskyProlificFollowers
         end
       end
       blocklist_dids.uniq! # remove duplicates from what we'll be scanning
-      blocklist_dids.each { |e| @did_query_queue.push(e) }
+      blocklist_dids.each { |e| @did_schedule_queue.push(e) }
     end
 
     # run the firehose listener
