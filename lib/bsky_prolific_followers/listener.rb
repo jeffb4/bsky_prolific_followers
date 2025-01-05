@@ -262,7 +262,7 @@ module BskyProlificFollowers
 
     # cache_fresh?(did) - determine whether a cached profile DID is fresh enough (has been cached in the last hour)
     def cache_fresh?(did)
-      return true if @cache_expire # if we are ignoring cache times, then the entry is fresh enough
+      return true unless @cache_expire # if we are ignoring cache times, then the entry is fresh enough
 
       ((DateTime.now - DateTime.iso8601(cache_get_profile(did)["cachedAt"])) * 86_400) < 3600
     end
