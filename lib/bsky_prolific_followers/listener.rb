@@ -469,7 +469,7 @@ module BskyProlificFollowers
 
     # run the firehose listener
     def run(expire: true)
-      puts "@hate_words = #{@hate_words}"
+      puts "@hate_words = #{@hate_words}" if @verbose
       puts "expire = #{expire}"
       @cache_expire = expire
       puts "@cache_expire = #{pp(@cache_expire)}"
