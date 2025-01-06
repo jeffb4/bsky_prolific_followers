@@ -369,8 +369,8 @@ module BskyProlificFollowers
       task.execute
     end
 
-    def debug_resolver_cache
-      puts "Starting resolver cache debug"
+    def queue_length_monitor
+      puts "Starting queue length monitor"
       Thread.new do
         loop do
           sleep 5
@@ -380,6 +380,31 @@ module BskyProlificFollowers
           puts "@did_listadd_queue.length = #{@did_listadd_queue.length}"
           # end
           # puts did_profiles_local
+        end
+      end
+    end
+
+    def compact_query_queue
+      puts "Starting query queue compaction helper"
+      Thread.new do
+        loop do
+          # Every 5 minutes, if the schedule queue is near-empty and the query queue is over 30% more than
+          # the number of stored profiles, drain the query queue then remove duplicate elements, then
+          # requeue into the query queue
+          sleep 300
+          new_query_queue = []
+          next unless (@did_schedule_queue.length < 100) && (@did_query_queue.length > (8_100_000 * 1.3))
+
+          begin
+            loop do
+              new_query_queue << @did_query_queue.pop(true)
+            end
+          rescue ThreadError
+            print "Query queue drained: (#{new_query_queue.length} -> "
+          end
+          new_query_queue.uniq!
+          puts "#{new_query_queue.length})"
+          new_query_queue.each { |q| @did_query_queue << q }
         end
       end
     end
@@ -477,7 +502,8 @@ module BskyProlificFollowers
       queue_lists_rescan
       queue_cache_rescan
       create_maintainer_helpers_timer
-      debug_resolver_cache
+      queue_length_monitor
+      compact_query_queue
 
       sky = Skyfall::Firehose.new("bsky.network", :subscribe_repos)
 
