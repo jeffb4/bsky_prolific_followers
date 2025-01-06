@@ -77,6 +77,7 @@ module BskyProlificFollowers
       init_blocklists
       @did_profiles = Concurrent::Map.new
       @follows_limit = 5000
+      @cache_life = (48 * 60 * 60) # 48 hours
       @list_uris = Concurrent::Map.new
       @profile_schedulers = Concurrent::Array.new(num_profile_schedulers)
       @profile_resolvers = Concurrent::Array.new(num_profile_resolvers)
@@ -264,7 +265,7 @@ module BskyProlificFollowers
     def cache_fresh?(did)
       return true unless @cache_expire # if we are ignoring cache times, then the entry is fresh enough
 
-      ((DateTime.now - DateTime.iso8601(cache_get_profile(did)["cachedAt"])) * 86_400) < 3600
+      ((DateTime.now - DateTime.iso8601(cache_get_profile(did)["cachedAt"])) * 86_400) < @cache_life
     end
 
     # get_profile(did) - query bsky using the public cached endpoint for a profile
