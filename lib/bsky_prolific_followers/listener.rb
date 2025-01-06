@@ -228,10 +228,10 @@ module BskyProlificFollowers
         Thread.new do
           bsky = Minisky.new("bsky.social", "creds.yml")
           loop do
-            listadd_did = @did_listadd_queue.pop
+            profile = @did_listadd_queue.pop # profile is pushed into queue to avoid an extra sqlite select
             begin
-              profile = cache_get_profile(listadd_did)
-              next unless profile
+              # profile = cache_get_profile(listadd_did)
+              # next unless profile
 
               check_follows(bsky, profile)
               check_zero_width_space(bsky, profile)
@@ -261,11 +261,11 @@ module BskyProlificFollowers
                         [did, JSON.dump(profile)])
     end
 
-    # cache_fresh?(did) - determine whether a cached profile DID is fresh enough (has been cached in the last hour)
-    def cache_fresh?(did)
+    # cache_fresh?(profile) - determine whether a cached profile DID is fresh enough (has been cached in the last hour)
+    def cache_fresh?(profile)
       return true unless @cache_expire # if we are ignoring cache times, then the entry is fresh enough
 
-      ((DateTime.now - DateTime.iso8601(cache_get_profile(did)["cachedAt"])) * 86_400) < @cache_life
+      ((DateTime.now - DateTime.iso8601(profile["cachedAt"])) * 86_400) < @cache_life
     end
 
     # get_profile(did) - query bsky using the public cached endpoint for a profile
@@ -293,11 +293,11 @@ module BskyProlificFollowers
             else
               begin
                 puts "Retrieving uncached/unfresh DID profile #{lookup_did}" if @verbose
-                profile = get_profile(lookup_did)
-                profile["cachedAt"] = DateTime.now.iso8601
-                cache_save_profile(lookup_did, profile)
+                fresh_profile = get_profile(lookup_did)
+                fresh_profile["cachedAt"] = DateTime.now.iso8601
+                cache_save_profile(lookup_did, fresh_profile)
                 # puts "(new) #{profile}"
-                @did_listadd_queue.push(lookup_did)
+                @did_listadd_queue.push(fresh_profile)
               rescue Minisky::ClientErrorResponse => e
                 bsky = Minisky.new("bsky.social", "creds.yml")
                 puts "ClientErrorResponse: #{e.status} : #{e.data}" if @verbose
@@ -320,21 +320,15 @@ module BskyProlificFollowers
       end
     end
 
-    def cache_did_profile_exists?(did)
-      profile_did = @cache_db.execute("SELECT profile FROM profiles WHERE did=?", did)
-      return false if profile_did.nil?
-
-      return false unless profile_did && profile_did[0]
-
-      return false if profile_did[0][0] == "null"
-
-      true
-    end
-
     # cache_skip_profile_fetch?(did) - determine whether a given profile exists and is fresh enough
-    # to skip retrieval, now
+    # to skip retrieval, now. Returns false if stale / nonexistent, profile otherwise
     def cache_skip_profile_fetch?(did)
-      cache_did_profile_exists?(did) && cache_fresh?(did)
+      profile = cache_get_profile(did)
+      return false unless profile
+
+      return false unless cache_fresh?(profile)
+
+      profile
     end
 
     # create_profile_schedulers - create threads that watch @did_schedule_queue for DIDs seen on the
@@ -346,16 +340,12 @@ module BskyProlificFollowers
         Thread.new do
           loop do
             firehose_did = @did_schedule_queue.pop
-            if cache_skip_profile_fetch?(firehose_did)
-              profile = cache_get_profile(firehose_did)
-              if profile.nil?
-                # This is an error case that should not be reached if cache_skip_profile_fetch? is working correctly
-                print "cache_profile_exists? but nil: #{firehose_did} "
-                puts @cache_db.execute("SELECT profile FROM profiles WHERE did=?", firehose_did)
-              elsif profile.key?("handle")
+            profile = cache_skip_profile_fetch?(firehose_did)
+            if profile
+              if profile.key?("handle")
                 # Account exists and has a handle, send it for list checks
                 puts "Received cached DID #{firehose_did} #{profile["handle"]}" if @verbose
-                @did_listadd_queue.push(firehose_did)
+                @did_listadd_queue.push(profile)
               else
                 puts "(ERROR) Recieved cached DID #{firehose_did} #{profile}"
               end
