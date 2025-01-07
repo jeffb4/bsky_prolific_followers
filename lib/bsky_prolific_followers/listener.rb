@@ -82,14 +82,15 @@ module BskyProlificFollowers
       @porn_words = load_words "porn_words.txt"
     end
 
-    def initialize(num_profile_resolvers: 30, num_list_maintainers: 5, num_profile_schedulers: 1, verbose: false)
+    def initialize(num_profile_resolvers: 40, num_list_maintainers: 5, num_profile_schedulers: 2, cache_hours: 4,
+                   verbose: false)
       @verbose = verbose
       init_db
       init_queues
       init_blocklists
       @did_profiles = Concurrent::Map.new
       @follows_limit = 5000
-      @cache_life = (48 * 60 * 60) # 48 hours
+      @cache_life = (cache_hours * 60 * 60)
       @list_uris = Concurrent::Map.new
       @profile_schedulers = Concurrent::Array.new(num_profile_schedulers)
       @profile_resolvers = Concurrent::Array.new(num_profile_resolvers)
