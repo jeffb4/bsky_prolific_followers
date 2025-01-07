@@ -290,6 +290,25 @@ module BskyProlificFollowers
       )
     end
 
+    # get_profiles(dids) - query bsky using the public cached endpoint for a profile
+    def get_profiles(dids)
+      return if dids.empty?
+      raise IndexError("dids=#{dids} (#{dids.length})") if dids.length > 25
+
+      bsky = Minisky.new("public.api.bsky.app", nil)
+      bsky.get_request(
+        "app.bsky.actor.getProfiles",
+        { actors: dids }
+      )["profiles"]
+    end
+
+    # cache_delete_profile(did) - remove an entry from the local cache
+    def cache_delete_profile(did)
+      uts "Deleting profile for #{did}" if @verbose
+
+      @cache_db.execute("DELETE FROM profiles WHERE did=?", [did])
+    end
+
     # create_profile_resolvers - create threads that read from @did_query_queue and resolve profiles
     def create_profile_resolvers
       @profile_resolvers.map! do |thr|
@@ -297,36 +316,55 @@ module BskyProlificFollowers
 
         Thread.new do
           loop do
-            lookup_did = @did_query_queue.pop
-            # Recheck on whether we should skip profile fetch - it's possible a did was reentered into
-            # resolver queue before it was fetched, so profile schedulers shouldn't necessarily be
-            # trusted
-            if cache_skip_profile_fetch?(lookup_did)
-              puts "Resolver received cached DID #{lookup_did}" if @verbose
-            else
-              begin
-                puts "Retrieving uncached/unfresh DID profile #{lookup_did}" if @verbose
-                fresh_profile = get_profile(lookup_did)
-                fresh_profile["cachedAt"] = DateTime.now.iso8601
-                cache_save_profile(lookup_did, fresh_profile)
-                # puts "(new) #{profile}"
-                @did_listadd_queue.push(fresh_profile)
-              rescue Minisky::ClientErrorResponse => e
-                bsky = Minisky.new("bsky.social", "creds.yml")
-                puts "ClientErrorResponse: #{e.status} : #{e.data}" if @verbose
-                case e.data["error"]
-                when "AccountDeactivated", "AccountTakedown"
-                  remove_user_from_all_lists(bsky, lookup_did)
-                when "InvalidRequest"
-                  remove_user_from_all_lists(bsky, lookup_did) if e.data["message"] == "Profile not found"
+            lookup_dids = []
+            begin
+              # pop up to 25 unique lookups off the queue
+              loop do
+                break if lookup_dids.length >= 25
+
+                lookup_did = @did_query_queue.pop(false)
+                profile = cache_skip_profile_fetch?(lookup_did)
+                if profile
+                  puts "Resolver received cached DID #{lookup_did}" if @verbose
+                else
+                  lookup_dids << lookup_did
+                  lookup_dids.uniq!
                 end
-              rescue Net::OpenTimeout => e
-                puts(e.full_message)
-                retry
-              rescue Socket::ResolutionError
-                puts "DNS resolution error"
-                retry
+              rescue ThreadError
+                puts "Resolver queue drained" if @verbose
               end
+              # lookup the up to 25 unique DIDs
+              profiles = get_profiles(lookup_dids)
+              # save off each profile to cache and add to listadd queue
+              profiles.each do |p|
+                p["cachedAt"] = DateTime.now.iso8601
+                cache_save_profile(p["did"], p) # TODO: make profile saves a queue?
+                @did_listadd_queue.push(p)
+              end
+            rescue Minisky::ClientErrorResponse => e
+              # For AccountDeactivated, AccountTakedown, InvalidRequest(Profile not found) responses, assume the
+              # account/DID is no longer valid, and remove from all lists
+              # TODO: also remove from local cache
+              bsky = Minisky.new("bsky.social", "creds.yml")
+              puts "ClientErrorResponse: #{e.status} : #{e.data}" # if @verbose
+              # case e.data["error"]
+              # when "AccountDeactivated", "AccountTakedown"
+              #   remove_user_from_all_lists(bsky, lookup_did)
+              #   cache_delete_profile(lookup_did)
+              # when "InvalidRequest"
+              #   remove_user_from_all_lists(bsky, lookup_did) if e.data["message"] == "Profile not found"
+              #   cache_delete_profile(lookup_did) if e.data["message"] == "Profile not found"
+              # end
+            rescue Minisky::ServerErrorResponse => e
+              print "Minisky::ServerErrorResponse"
+              pprint e
+              retry
+            rescue Net::OpenTimeout => e
+              puts(e.full_message)
+              retry
+            rescue Socket::ResolutionError
+              puts "DNS resolution error"
+              retry
             end
           end
         end
