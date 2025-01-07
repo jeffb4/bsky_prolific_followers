@@ -56,6 +56,18 @@ module BskyProlificFollowers
         { name: "Over10K", description: "Accounts that follow more than 10k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", threshold: 10_000 }
+      @blocklists[:over20k] =
+        { name: "Over20K", description: "Accounts that follow more than 20k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", threshold: 20_000 }
+      @blocklists[:over50k] =
+        { name: "Over50K", description: "Accounts that follow more than 50k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", threshold: 50_000 }
+      @blocklists[:over100k] =
+        { name: "Over100K", description: "Accounts that follow more than 100k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", threshold: 100_000 }
       @blocklists[:zws] =
         { name: "ZeroWidthSpace",
           description: "Accounts with descriptions containing suspicious zero width spaces and the like" }
@@ -144,7 +156,7 @@ module BskyProlificFollowers
     # check the follows on a profile and add to a list if appropriate
     def check_follows(bsky, profile)
       follows_count = profile["followsCount"]
-      %i[over5k over7k over10k].each do |list_symbol|
+      %i[over5k over7k over10k over20k over50k over100k].each do |list_symbol|
         follow_limit = @blocklists[list_symbol][:threshold]
         if follows_count >= follow_limit
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
