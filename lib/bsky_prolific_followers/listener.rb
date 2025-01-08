@@ -68,9 +68,10 @@ module BskyProlificFollowers
         { name: "Over100K", description: "Accounts that follow more than 100k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", threshold: 100_000 }
-      @blocklists[:zws] =
-        { name: "ZeroWidthSpace",
-          description: "Accounts with descriptions containing suspicious zero width spaces and the like" }
+      @blocklists[:followersover100k] =
+        { name: "FollowersOver100K", description: "Accounts that have more than 100k followers. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they have a large number of accounts following them.", threshold: 100_000 }
       @blocklists[:mw] =
         { name: "MagaWords", description: "Profiles with MAGA terms in the description" }
       @blocklists[:hw] =
@@ -169,9 +170,18 @@ module BskyProlificFollowers
       end
     end
 
-    # check the profile descript for zero width space (U+200b) and add to a list
-    def check_zero_width_space(bsky, profile)
-      remove_user_from_list_if_present(bsky, profile["did"], :zws)
+    def check_followers(bsky, profile)
+      followers_count = profile["followersCount"]
+      %i[followersover100k].each do |list_symbol|
+        followers_limit = @blocklists[list_symbol][:threshold]
+        if followers_count >= followers_limit
+          puts "Adding #{profile["did"]} (#{followers_count} >= #{followers_limit})" if @verbose
+          add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
+        else
+          puts "Removing #{profile["did"]} (#{follows_count} < #{follows_limit})" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+        end
+      end
     end
 
     # match_dhd? does a profile description, handle, or displayName match an array of words?
@@ -247,7 +257,7 @@ module BskyProlificFollowers
               # next unless profile
 
               check_follows(bsky, profile)
-              check_zero_width_space(bsky, profile)
+              check_followers(bsky, profile)
               check_maga_words(bsky,  profile)
               check_hate_words(bsky,  profile)
               check_porn_words(bsky,  profile)
