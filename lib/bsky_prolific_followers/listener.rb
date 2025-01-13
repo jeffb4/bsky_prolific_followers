@@ -83,7 +83,7 @@ module BskyProlificFollowers
       @porn_words = load_words "porn_words.txt"
     end
 
-    def initialize(num_profile_resolvers: 40, num_list_maintainers: 5, num_profile_schedulers: 2, cache_hours: 4,
+    def initialize(num_profile_resolvers: 40, num_list_maintainers: 5, num_profile_schedulers: 2, cache_hours: 1,
                    verbose: false)
       @verbose = verbose
       init_db
