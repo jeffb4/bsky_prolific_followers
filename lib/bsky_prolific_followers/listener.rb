@@ -561,7 +561,7 @@ module BskyProlificFollowers
       puts "@cache_expire = #{pp(@cache_expire)}"
       load_lists
       queue_lists_rescan
-      queue_cache_rescan
+      # queue_cache_rescan
       create_maintainer_helpers_timer
       queue_length_monitor
       compact_query_queue
