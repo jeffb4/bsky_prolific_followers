@@ -47,27 +47,33 @@ module BskyProlificFollowers
       @blocklists[:over5k] =
         { name: "Over5K", description: "Accounts that follow more than 5k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
-        "simply that they follow a large number of accounts.", threshold: 5000 }
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 5000 }
       @blocklists[:over7k] =
         { name: "Over7K", description: "Accounts that follow more than 7k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
-        "simply that they follow a large number of accounts.", threshold: 7000 }
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 7000 }
       @blocklists[:over10k] =
         { name: "Over10K", description: "Accounts that follow more than 10k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
-        "simply that they follow a large number of accounts.", threshold: 10_000 }
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 10_000 }
       @blocklists[:over20k] =
         { name: "Over20K", description: "Accounts that follow more than 20k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
-        "simply that they follow a large number of accounts.", threshold: 20_000 }
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 20_000 }
       @blocklists[:over50k] =
         { name: "Over50K", description: "Accounts that follow more than 50k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
-        "simply that they follow a large number of accounts.", threshold: 50_000 }
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 50_000 }
       @blocklists[:over100k] =
         { name: "Over100K", description: "Accounts that follow more than 100k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
-        "simply that they follow a large number of accounts.", threshold: 100_000 }
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 100_000 }
       @blocklists[:followersover100k] =
         { name: "FollowersOver100K", description: "Accounts that have more than 100k followers. " \
         "There is no implication that these accounts themselves are not run by humans, " \
@@ -141,7 +147,7 @@ module BskyProlificFollowers
         next true unless entry[:did] == account_did
 
         puts "Removing #{account_did} from @blocklists[#{list_sym}][:entries] " \
-            "(len=#{@blocklists[list_sym][:entries].length})"
+             "(len=#{@blocklists[list_sym][:entries].length})"
         remove_rkey_from_lists(bsky, entry[:rkey])
         false
       end
@@ -159,6 +165,11 @@ module BskyProlificFollowers
     def check_follows(bsky, profile)
       follows_count = profile["followsCount"]
       %i[over5k over7k over10k over20k over50k over100k].each do |list_symbol|
+        if @blocklists[list_symbol][:exceptions].key?(profile["did"])
+          puts "Removing #{profile["did"]} (exception)" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+          next
+        end
         follow_limit = @blocklists[list_symbol][:threshold]
         if follows_count >= follow_limit
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
@@ -173,6 +184,11 @@ module BskyProlificFollowers
     def check_followers(bsky, profile)
       followers_count = profile["followersCount"]
       %i[followersover100k].each do |list_symbol|
+        if @blocklists[list_symbol][:exceptions].key?(profile["did"])
+          puts "Removing #{profile["did"]} (exception)" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+          next
+        end
         followers_limit = @blocklists[list_symbol][:threshold]
         if followers_count >= followers_limit
           puts "Adding #{profile["did"]} (#{followers_count} >= #{followers_limit})" if @verbose
@@ -200,6 +216,11 @@ module BskyProlificFollowers
 
     # check the profile description for presence of maga words and add to a list
     def check_maga_words(bsky, profile)
+      if @blocklists[:mw][:exceptions].key?(profile["did"])
+        puts "Removing #{profile["did"]} (exception)" if @verbose
+        remove_user_from_list_if_present(bsky, profile["did"], :mw)
+        return
+      end
       unless profile.key?("description") && match_dhd?(profile, @maga_words)
         remove_user_from_list_if_present(bsky, profile["did"], :mw)
         return
@@ -211,6 +232,11 @@ module BskyProlificFollowers
 
     # check the profile description for presence of hate words and add to a list
     def check_hate_words(bsky, profile)
+      if @blocklists[:hw][:exceptions].key?(profile["did"])
+        puts "Removing #{profile["did"]} (exception)" if @verbose
+        remove_user_from_list_if_present(bsky, profile["did"], :hw)
+        return
+      end
       unless profile.key?("description") && match_dhd?(profile, @hate_words)
         remove_user_from_list_if_present(bsky, profile["did"], :hw)
         return
@@ -222,6 +248,11 @@ module BskyProlificFollowers
 
     # check profile for presence of porn words and add to a list
     def check_porn_words(bsky, profile)
+      if @blocklists[:pw][:exceptions].key?(profile["did"])
+        puts "Removing #{profile["did"]} (exception)" if @verbose
+        remove_user_from_list_if_present(bsky, profile["did"], :pw)
+        return
+      end
       unless profile.key?("description") && match_dhd?(profile, @porn_words)
         remove_user_from_list_if_present(bsky, profile["did"], :pw)
         return
@@ -258,9 +289,9 @@ module BskyProlificFollowers
 
               check_follows(bsky, profile)
               check_followers(bsky, profile)
-              check_maga_words(bsky,  profile)
-              check_hate_words(bsky,  profile)
-              check_porn_words(bsky,  profile)
+              check_maga_words(bsky, profile)
+              check_hate_words(bsky, profile)
+              check_porn_words(bsky, profile)
             rescue Minisky::ExpiredTokenError => e
               puts(e.full_message)
               bsky = Minisky.new("bsky.social", "creds.yml")
@@ -522,6 +553,15 @@ module BskyProlificFollowers
         create_list_if_missing(bsky, l)
         @blocklists[l][:entries] = read_list_entries(bsky_public, l)
         puts "@blocklists[#{l}][:entries].length = #{@blocklists[l][:entries].length}"
+        @blocklists[l][:exceptions] = []
+        next unless @blocklists[l].key?(:exception_file)
+        next unless File.exist?(l[:exception_file])
+
+        words = []
+        File.open(l[:exception_file]) do |f|
+          words = f.readlines
+        end
+        @blocklists[l][:exceptions] = words.map(&:strip)
       end
     end
 
