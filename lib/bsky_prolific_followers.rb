@@ -5,5 +5,6 @@ require_relative "bsky_prolific_followers/version"
 
 module BskyProlificFollowers
   class Error < StandardError; end
+
   # Your code goes here...
 end

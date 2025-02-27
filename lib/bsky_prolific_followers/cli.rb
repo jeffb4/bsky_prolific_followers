@@ -8,6 +8,7 @@ module BskyProlificFollowers
   class CLI
     STATUS_SUCCESS = 0
     STATUS_ERROR = 2
+
     def initialize
       @exit = false
     end
@@ -50,7 +51,7 @@ module BskyProlificFollowers
           opts.on("-lLIST", "--list=LIST", "list to remove user from") do |n|
             options[:list] = n
           end
-        end
+        end,
       }
 
       global.order! argv
