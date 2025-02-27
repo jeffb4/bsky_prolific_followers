@@ -165,7 +165,7 @@ module BskyProlificFollowers
     def check_follows(bsky, profile)
       follows_count = profile["followsCount"]
       %i[over5k over7k over10k over20k over50k over100k].each do |list_symbol|
-        if @blocklists[list_symbol][:exceptions].key?(profile["did"])
+        if @blocklists[list_symbol][:exceptions].any?(profile["did"])
           puts "Removing #{profile["did"]} (exception)" if @verbose
           remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
           next
@@ -216,7 +216,7 @@ module BskyProlificFollowers
 
     # check the profile description for presence of maga words and add to a list
     def check_maga_words(bsky, profile)
-      if @blocklists[:mw][:exceptions].key?(profile["did"])
+      if @blocklists[:mw][:exceptions].any?(profile["did"])
         puts "Removing #{profile["did"]} (exception)" if @verbose
         remove_user_from_list_if_present(bsky, profile["did"], :mw)
         return
@@ -232,7 +232,7 @@ module BskyProlificFollowers
 
     # check the profile description for presence of hate words and add to a list
     def check_hate_words(bsky, profile)
-      if @blocklists[:hw][:exceptions].key?(profile["did"])
+      if @blocklists[:hw][:exceptions].any?(profile["did"])
         puts "Removing #{profile["did"]} (exception)" if @verbose
         remove_user_from_list_if_present(bsky, profile["did"], :hw)
         return
@@ -248,7 +248,7 @@ module BskyProlificFollowers
 
     # check profile for presence of porn words and add to a list
     def check_porn_words(bsky, profile)
-      if @blocklists[:pw][:exceptions].key?(profile["did"])
+      if @blocklists[:pw][:exceptions].any?(profile["did"])
         puts "Removing #{profile["did"]} (exception)" if @verbose
         remove_user_from_list_if_present(bsky, profile["did"], :pw)
         return
