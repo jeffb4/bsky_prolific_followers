@@ -555,10 +555,10 @@ module BskyProlificFollowers
         puts "@blocklists[#{l}][:entries].length = #{@blocklists[l][:entries].length}"
         @blocklists[l][:exceptions] = []
         next unless @blocklists[l].key?(:exception_file)
-        next unless File.exist?(l[:exception_file])
+        next unless File.exist?(@blocklists[l][:exception_file])
 
         words = []
-        File.open(l[:exception_file]) do |f|
+        File.open(@blocklists[l][:exception_file]) do |f|
           words = f.readlines
         end
         @blocklists[l][:exceptions] = words.map(&:strip)
