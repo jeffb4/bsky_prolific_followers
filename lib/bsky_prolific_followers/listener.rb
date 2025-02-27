@@ -614,6 +614,10 @@ module BskyProlificFollowers
         @did_schedule_queue.push(msg.did)
       end
 
+      sky.check_heartbeat = true
+      sky.heartbeat_timeout = 20
+      sky.heartbeat_interval = 5
+
       # lifecycle events
       sky.on_connecting { |url| puts "Connecting to #{url}..." }
       sky.on_connect { puts "Connected" }
