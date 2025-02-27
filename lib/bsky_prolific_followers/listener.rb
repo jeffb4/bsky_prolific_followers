@@ -184,7 +184,7 @@ module BskyProlificFollowers
     def check_followers(bsky, profile)
       followers_count = profile["followersCount"]
       %i[followersover100k].each do |list_symbol|
-        if @blocklists[list_symbol][:exceptions].key?(profile["did"])
+        if @blocklists[list_symbol][:exceptions].include?(profile["did"])
           puts "Removing #{profile["did"]} (exception)" if @verbose
           remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
           next
