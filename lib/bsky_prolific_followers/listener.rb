@@ -74,6 +74,36 @@ module BskyProlificFollowers
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 100_000 }
+      @blocklists[:over5k_unverified] =
+        { name: "UnverifiedOver5K", description: "Domain unverified accounts that follow more than 5k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 5000 }
+      @blocklists[:over7k_unverified] =
+        { name: "UnverifiedOver7K", description: "Domain unverified accounts that follow more than 7k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 7000 }
+      @blocklists[:over10k_unverified] =
+        { name: "UnverifiedOver10K", description: "Domain unverified accounts that follow more than 10k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 10_000 }
+      @blocklists[:over20k_unverified] =
+        { name: "UnverifiedOver20K", description: "Domain unverified accounts that follow more than 20k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 20_000 }
+      @blocklists[:over50k_unverified] =
+        { name: "UnverifiedOver50K", description: "Domain unverified accounts that follow more than 50k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 50_000 }
+      @blocklists[:over100k_unverified] =
+        { name: "UnverifiedOver100K", description: "Domain unverified accounts that follow more than 100k accounts. " \
+        "There is no implication that these accounts themselves are not run by humans, " \
+        "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
+          threshold: 100_000 }
       @blocklists[:followersover100k] =
         { name: "FollowersOver100K", description: "Accounts that have more than 100k followers. " \
         "There is no implication that these accounts themselves are not run by humans, " \
@@ -170,6 +200,25 @@ module BskyProlificFollowers
           remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
           next
         end
+        follow_limit = @blocklists[list_symbol][:threshold]
+        if follows_count >= follow_limit
+          puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
+          add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
+        else
+          puts "Removing #{profile["did"]} (#{follows_count} < #{follows_limit})" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+        end
+      end
+      %i[over5k_unverified over7k_unverified
+         over10k_unverified over20k_unverified
+         over50k_unverified over100k_unverified].each do |list_symbol|
+        if @blocklists[list_symbol][:exceptions].include?(profile["did"])
+          puts "Removing #{profile["did"]} (exception)" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+          next
+        end
+        next unless profile["handle"].end_with?("bsky.social")
+
         follow_limit = @blocklists[list_symbol][:threshold]
         if follows_count >= follow_limit
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
