@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "async"
 require "concurrent"
 require "date"
 require "didkit"
@@ -598,20 +599,24 @@ module BskyProlificFollowers
     def load_lists
       bsky = Minisky.new("bsky.social", "creds.yml")
       bsky_public = Minisky.new("public.api.bsky.app", nil)
+      barrier = Async::Barrier.new
       @blocklists.each_key do |l|
-        create_list_if_missing(bsky, l)
-        @blocklists[l][:entries] = read_list_entries(bsky_public, l)
-        puts "@blocklists[#{l}][:entries].length = #{@blocklists[l][:entries].length}"
-        @blocklists[l][:exceptions] = []
-        next unless @blocklists[l].key?(:exception_file)
-        next unless File.exist?(@blocklists[l][:exception_file])
+        barrier.async do
+          create_list_if_missing(bsky, l)
+          @blocklists[l][:entries] = read_list_entries(bsky_public, l)
+          puts "@blocklists[#{l}][:entries].length = #{@blocklists[l][:entries].length}"
+          @blocklists[l][:exceptions] = []
+          next unless @blocklists[l].key?(:exception_file)
+          next unless File.exist?(@blocklists[l][:exception_file])
 
-        words = []
-        File.open(@blocklists[l][:exception_file]) do |f|
-          words = f.readlines
+          words = []
+          File.open(@blocklists[l][:exception_file]) do |f|
+            words = f.readlines
+          end
+          @blocklists[l][:exceptions] = words.map(&:strip)
         end
-        @blocklists[l][:exceptions] = words.map(&:strip)
       end
+      barrier.wait
     end
 
     def clear_queues
