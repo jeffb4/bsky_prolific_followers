@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "async"
+require "async/barrier"
 require "concurrent"
 require "date"
 require "didkit"
