@@ -449,7 +449,7 @@ module BskyProlificFollowers
               # end
             rescue Minisky::ServerErrorResponse => e
               print "Minisky::ServerErrorResponse"
-              pprint e
+              pp e
               retry
             rescue Net::OpenTimeout => e
               puts(e.full_message)
