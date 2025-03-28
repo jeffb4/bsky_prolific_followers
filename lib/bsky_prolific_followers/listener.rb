@@ -668,7 +668,7 @@ module BskyProlificFollowers
       # Listen on the firehose for follow actions
       sky.on_message do |msg|
         # puts "Saw #{msg.did} on firehose"
-        @did_schedule_queue.push(msg.did)
+        @did_schedule_queue.push(msg.did || msg.repo)
       end
 
       sky.check_heartbeat = true
