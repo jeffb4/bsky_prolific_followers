@@ -669,6 +669,11 @@ module BskyProlificFollowers
       sky.on_message do |msg|
         # puts "Saw #{msg.did} on firehose"
         @did_schedule_queue.push(msg.did || msg.repo)
+        if msg.type == :commit
+          msg.operations.each do |op|
+            @did_schedule_queue.push(op.did || op.repo)
+          end
+        end
       end
 
       sky.check_heartbeat = true
