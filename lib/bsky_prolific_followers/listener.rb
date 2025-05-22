@@ -377,7 +377,7 @@ module BskyProlificFollowers
               # For AccountDeactivated, AccountTakedown, InvalidRequest(Profile not found) responses, assume the
               # account/DID is no longer valid, and remove from all lists
               # TODO: also remove from local cache
-              bsky = Minisky.new("bsky.social", "creds.yml")
+              # bsky = Minisky.new("bsky.social", "creds.yml")
               puts "ClientErrorResponse: #{e.status} : #{e.data}" # if @verbose
               # case e.data["error"]
               # when "AccountDeactivated", "AccountTakedown"
