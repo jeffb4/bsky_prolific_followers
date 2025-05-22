@@ -125,6 +125,7 @@ module BskyProlificFollowers
       @profile_schedulers = Concurrent::Array.new(num_profile_schedulers)
       @profile_resolvers = Concurrent::Array.new(num_profile_resolvers)
       @list_maintainers = Concurrent::Array.new(num_list_maintainers)
+      @lists_rescan_helpers = Concurrent::Array.new(1)
     end
 
     # load_words - Read a file given by filename, and return each line as a stripped string
@@ -441,10 +442,19 @@ module BskyProlificFollowers
       end
     end
 
+    def create_queue_lists_rescan_helper
+      @lists_rescan_helpers.map! do |thr|
+        next thr unless thr.nil? || thr.status.nil?
+
+        queue_lists_rescan_helper
+      end
+    end
+
     def maintainer_helpers
       create_profile_schedulers
       create_list_maintainers
       create_profile_resolvers
+      create_queue_lists_rescan_helper
     end
 
     def create_maintainer_helpers_timer
@@ -578,7 +588,11 @@ module BskyProlificFollowers
       end
     end
 
-    # queue_lists_rescan - requeue all list entries to scan
+    def queues_idle
+      # Return true if the queues are effectively idle
+      @did_schedule_queue.length + @did_query_queue.length + @did_listadd_queue.length < 200
+    end
+
     def queue_lists_rescan
       blocklist_dids = []
       @blocklists.each_key do |l|
@@ -588,6 +602,18 @@ module BskyProlificFollowers
       end
       blocklist_dids.uniq! # remove duplicates from what we'll be scanning
       blocklist_dids.each { |e| @did_schedule_queue.push(e) }
+    end
+
+    # queue_lists_rescan - requeue all list entries to scan
+    def queue_lists_rescan_helper
+      puts "Starting query lists rescan helper"
+      Thread.new do
+        loop do
+          # Every 5 minutes, if all queues are near idle, queue all list members for rescan
+          queue_lists_rescan if queues_idle
+          sleep 300
+        end
+      end
     end
 
     # run the firehose listener
