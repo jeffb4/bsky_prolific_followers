@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "bsky_prolific_followers/listener"
+require "bsky_prolific_followers/modlist"
 require "optparse"
 # top-level module for utility
 module BskyProlificFollowers
@@ -21,6 +22,7 @@ module BskyProlificFollowers
         Commonly used command are:
            run :             run the bot
            remove-user :     remove a user from a list
+           delete-list:      delete a modlist
         See 'opt.rb COMMAND --help' for more information on a specific command.
       HELP
 
@@ -52,6 +54,12 @@ module BskyProlificFollowers
             options[:list] = n
           end
         end,
+        "delete-list" => OptionParser.new do |opts|
+          opts.banner = "Usage: delete-list [options]"
+          opts.on("-lLIST", "--list=LIST", "list to delete") do |n|
+            options[:list] = n
+          end
+        end
       }
 
       global.order! argv
@@ -63,11 +71,17 @@ module BskyProlificFollowers
       puts "ARGV:"
       p argv
 
-      listener = BskyProlificFollowers::Listener.new(verbose: options[:verbose])
-      if command == "run"
+      case command
+      when "run"
+        listener = BskyProlificFollowers::Listener.new(verbose: options[:verbose])
         listener.run(expire: options[:expire])
+      when "remove-user"
+        BskyProlificFollowers::Listener.run_remove_user_from_list(user: options[:user], list: options[:list],
+                                                                  verbose: options[:verbose])
+      when "delete-list"
+        BskyProlificFollowers::Modlist.run_delete_list(list: options[:list])
       else
-        listener.run_remove_user_from_list(user: options[:user], list: options[:list], verbose: options[:verbose])
+        return STATUS_ERROR
       end
       STATUS_SUCCESS
     end

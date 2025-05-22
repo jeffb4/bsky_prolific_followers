@@ -518,14 +518,14 @@ module BskyProlificFollowers
                         })["uri"]
     end
 
-    def get_account_lists(bsky)
+    def self.get_account_lists(bsky)
       bsky.get_request("app.bsky.graph.getLists", { actor: bsky.user.did })["lists"]
     end
 
     def create_list_if_missing(bsky, list_id)
       list_name = @blocklists[list_id][:name]
 
-      matched_list = get_account_lists(bsky).find { |list_entry| list_entry["name"] == list_name }
+      matched_list = Listener.get_account_lists(bsky).find { |list_entry| list_entry["name"] == list_name }
       if matched_list
         puts "Found a list named #{list_name}"
         @list_uris[list_id] = matched_list["uri"]
@@ -673,7 +673,7 @@ module BskyProlificFollowers
     end
 
     # remove_user_from_list - remove a given account DID from a list by URI
-    def remove_user_from_list(bsky, user_did, list_uri)
+    def self.remove_user_from_list(bsky, user_did, list_uri)
       bsky_public = Minisky.new("public.api.bsky.app", nil)
       entries = bsky_public.fetch_all("app.bsky.graph.getList",
                                       { list: list_uri },
@@ -694,7 +694,7 @@ module BskyProlificFollowers
       puts " (complete)"
     end
 
-    def run_remove_user_from_list(user:, list:, verbose:)
+    def self.run_remove_user_from_list(user:, list:, verbose:)
       bsky = Minisky.new("bsky.social", "creds.yml")
       account_lists = get_account_lists(bsky)
       list_uri = nil
@@ -709,7 +709,7 @@ module BskyProlificFollowers
       resolver = DIDKit::Resolver.new
       user_did = resolver.resolve_handle(user).did
       puts "user_did = #{user_did}" if verbose
-      remove_user_from_list(bsky, user_did, list_uri)
+      Listener.remove_user_from_list(bsky, user_did, list_uri)
     end
   end
 end
