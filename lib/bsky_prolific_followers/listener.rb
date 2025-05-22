@@ -110,15 +110,6 @@ module BskyProlificFollowers
         { name: "FollowersOver100K", description: "Accounts that have more than 100k followers. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they have a large number of accounts following them.", threshold: 100_000 }
-      @blocklists[:mw] =
-        { name: "MagaWords", description: "Profiles with MAGA terms in the description" }
-      @blocklists[:hw] =
-        { name: "HateWords", description: "Profiles with hateful terms in the description or account name" }
-      @blocklists[:pw] =
-        { name: "PornWords", description: "Profiles with porn terms in the description or account name" }
-      @maga_words = load_words "maga_words.txt"
-      @hate_words = load_words "hate_words.txt"
-      @porn_words = load_words "porn_words.txt"
     end
 
     def initialize(num_profile_resolvers: 40, num_list_maintainers: 20, num_profile_schedulers: 2, cache_hours: 1,
@@ -265,54 +256,6 @@ module BskyProlificFollowers
       true
     end
 
-    # check the profile description for presence of maga words and add to a list
-    def check_maga_words(bsky, profile)
-      if @blocklists[:mw][:exceptions].include?(profile["did"])
-        puts "Removing #{profile["did"]} (exception)" if @verbose
-        remove_user_from_list_if_present(bsky, profile["did"], :mw)
-        return
-      end
-      unless profile.key?("description") && match_dhd?(profile, @maga_words)
-        remove_user_from_list_if_present(bsky, profile["did"], :mw)
-        return
-      end
-
-      puts "Adding #{profile["did"]} contains maga_words" if @verbose
-      add_user_to_list_if_not_present(bsky, profile["did"], :mw)
-    end
-
-    # check the profile description for presence of hate words and add to a list
-    def check_hate_words(bsky, profile)
-      if @blocklists[:hw][:exceptions].include?(profile["did"])
-        puts "Removing #{profile["did"]} (exception)" if @verbose
-        remove_user_from_list_if_present(bsky, profile["did"], :hw)
-        return
-      end
-      unless profile.key?("description") && match_dhd?(profile, @hate_words)
-        remove_user_from_list_if_present(bsky, profile["did"], :hw)
-        return
-      end
-
-      puts "Adding #{profile["did"]} contains hate_words" if @verbose
-      add_user_to_list_if_not_present(bsky, profile["did"], :hw)
-    end
-
-    # check profile for presence of porn words and add to a list
-    def check_porn_words(bsky, profile)
-      if @blocklists[:pw][:exceptions].include?(profile["did"])
-        puts "Removing #{profile["did"]} (exception)" if @verbose
-        remove_user_from_list_if_present(bsky, profile["did"], :pw)
-        return
-      end
-      unless profile.key?("description") && match_dhd?(profile, @porn_words)
-        remove_user_from_list_if_present(bsky, profile["did"], :pw)
-        return
-      end
-
-      puts "Adding #{profile["did"]} contains porn_words" if @verbose
-      add_user_to_list_if_not_present(bsky, profile["did"], :pw)
-    end
-
     # Get an account DID from the local cache
     def cache_get_profile(did)
       profile_json = @cache_db.execute("SELECT profile FROM profiles WHERE did=?", did)
@@ -340,9 +283,6 @@ module BskyProlificFollowers
 
               check_follows(bsky, profile)
               check_followers(bsky, profile)
-              check_maga_words(bsky, profile)
-              check_hate_words(bsky, profile)
-              check_porn_words(bsky, profile)
             rescue Minisky::ExpiredTokenError => e
               puts(e.full_message)
               bsky = Minisky.new("bsky.social", "creds.yml")
@@ -652,8 +592,6 @@ module BskyProlificFollowers
 
     # run the firehose listener
     def run(expire: true)
-      puts "@hate_words = #{@hate_words}" if @verbose
-      puts "expire = #{expire}"
       @cache_expire = expire
       puts "@cache_expire = #{pp(@cache_expire)}"
       load_lists
