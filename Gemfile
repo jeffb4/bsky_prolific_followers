@@ -14,3 +14,5 @@ gem "rubocop", "~> 1.21"
 gem "sorbet", group: :development
 gem "sorbet-runtime"
 gem "tapioca", require: false, group: %i[development test]
+
+gem "async", "~> 2.23"
