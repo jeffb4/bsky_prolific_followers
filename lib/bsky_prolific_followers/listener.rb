@@ -211,10 +211,9 @@ module BskyProlificFollowers
           remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
           next
         end
-        next unless profile["handle"].end_with?("bsky.social")
 
         follow_limit = @blocklists[list_symbol][:threshold]
-        if follows_count >= follow_limit
+        if (follows_count >= follow_limit) && profile["handle"].end_with?("bsky.social")
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
           add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
         else
