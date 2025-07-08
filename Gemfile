@@ -11,7 +11,7 @@ gem "rspec", "~> 3.0"
 
 gem "rubocop", "~> 1.21"
 
-gem "sorbet", group: :development
+# gem "sorbet", group: :development
 gem "sorbet-runtime"
 gem "tapioca", require: false, group: %i[development test]
 
