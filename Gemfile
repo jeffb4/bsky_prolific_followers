@@ -11,8 +11,11 @@ gem "rspec", "~> 3.0"
 
 gem "rubocop", "~> 1.21"
 
+gem "async", "=2.23.1"
+gem "minisky", "=0.4.0"
+
 # gem "sorbet", group: :development
 gem "sorbet-runtime"
 gem "tapioca", require: false, group: %i[development test]
 
-gem "async", "~> 2.23"
+# gem "async", "~> 2.23"

@@ -12,7 +12,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.3)
-    async (2.24.0)
+    async (2.23.1)
       console (~> 1.29)
       fiber-annotation
       io-event (~> 1.9)
@@ -45,7 +45,7 @@ GEM
     logger (1.7.0)
     metrics (0.12.2)
     mini_portile2 (2.8.9)
-    minisky (0.5.0)
+    minisky (0.4.0)
       base64 (~> 0.1)
     netrc (0.11.0)
     parallel (1.27.0)
@@ -139,8 +139,9 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  async (~> 2.23)
+  async (= 2.23.1)
   bsky_prolific_followers!
+  minisky (= 0.4.0)
   rake (~> 13.0)
   rspec (~> 3.0)
   rubocop (~> 1.21)
