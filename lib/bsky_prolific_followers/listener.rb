@@ -113,7 +113,7 @@ module BskyProlificFollowers
         "simply that they have a large number of accounts following them.", threshold: 100_000 }
     end
 
-    def initialize(num_profile_resolvers: 40, num_list_maintainers: 20, num_profile_schedulers: 2, cache_hours: 1,
+    def initialize(num_profile_resolvers: 60, num_list_maintainers: 20, num_profile_schedulers: 2, cache_hours: 1,
                    verbose: false)
       @verbose = verbose
       init_db
