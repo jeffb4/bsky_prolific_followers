@@ -9,6 +9,7 @@ require "json"
 require "minisky"
 require "skyfall"
 require "sqlite3"
+require "socket"
 require "zlib"
 
 module BskyProlificFollowers
@@ -394,7 +395,7 @@ module BskyProlificFollowers
             rescue Net::OpenTimeout => e
               puts(e.full_message)
               retry
-            rescue Socket::ResolutionError
+            rescue SocketError
               puts "DNS resolution error"
               retry
             end
