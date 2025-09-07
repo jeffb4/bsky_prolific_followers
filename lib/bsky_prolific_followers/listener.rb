@@ -515,9 +515,7 @@ module BskyProlificFollowers
             puts "new_schedule_queue.uniq! complete: #{new_schedule_queue.length}"
             new_schedule_queue.each { |q| @did_schedule_queue << q }
           end
-          new_listadd_queue.uniq! { |p| p["did"] }
-          puts "new listadd_queue.uniq! complete: #{new_listadd_queue.length}"
-          new_listadd_queue.each { |q| @did_listadd_queue << q }
+          sleep 3000
         end
       end
     end
@@ -645,7 +643,7 @@ module BskyProlificFollowers
       # queue_cache_rescan
       create_maintainer_helpers_timer
       queue_length_monitor
-      compact_listadd_queue
+      compact_schedule_listadd_queue
 
       sky = Skyfall::Firehose.new("bsky.network", :subscribe_repos)
 
