@@ -477,24 +477,43 @@ module BskyProlificFollowers
       end
     end
 
-    def compact_listadd_queue
-      puts "Starting listadd queue compaction helper"
+    def compact_schedule_listadd_queue
+      puts "Starting schedule and listadd queue compaction helper"
       Thread.new do
         loop do
           # Every 5 minutes, if the schedule queue is near-empty and the query queue is over 30% more than
           # the number of stored profiles, drain the query queue then remove duplicate elements, then
           # requeue into the query queue
           sleep 300
+          next unless ((@did_listadd_queue.length > 1_000_000) ||
+                        (@did_schedule_queue.length > 1_000_000))
           new_listadd_queue = []
-          next unless (@did_listadd_queue.length > 1_000_000)
+          new_schedule_queue = []
           puts "Beginning queue compaction"
 
-          begin
-            loop do
-              new_listadd_queue << @did_listadd_queue.pop(true)
+          if (@did_listadd_queue.length > 1_000_000)
+            begin
+              loop do
+                new_listadd_queue << @did_listadd_queue.pop(true)
+              end
+            rescue ThreadError
+              puts "listadd queue drained: #{new_listadd_queue.length}"
             end
-          rescue ThreadError
-            puts "listadd queue drained: #{new_listadd_queue.length}"
+            new_listadd_queue.uniq! { |p| p["did"] }
+            puts "new_listadd_queue.uniq! complete: #{new_listadd_queue.length}"
+            new_listadd_queue.each { |q| @did_listadd_queue << q }
+          end
+          if (@did_schedule_queue.length > 1_000_000)
+            begin
+              loop do
+                new_schedule_queue << @did_schedule_queue.pop(true)
+              end
+            rescue ThreadError
+              puts "schedule queue drained: #{new_schedule_queue.length}"
+            end
+            new_schedule_queue.uniq!
+            puts "new_schedule_queue.uniq! complete: #{new_schedule_queue.length}"
+            new_schedule_queue.each { |q| @did_schedule_queue << q }
           end
           new_listadd_queue.uniq! { |p| p["did"] }
           puts "new listadd_queue.uniq! complete: #{new_listadd_queue.length}"
