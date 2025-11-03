@@ -78,32 +78,32 @@ module BskyProlificFollowers
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 100_000 }
       @blocklists[:over5k_unverified] =
-        { name: "UnverifiedOver5K", description: "Domain unverified accounts that follow more than 5k accounts. " \
+        { name: "UnverifiedOver5K", description: "Domain or Bluesky unverified accounts that follow more than 5k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 5000 }
       @blocklists[:over7k_unverified] =
-        { name: "UnverifiedOver7K", description: "Domain unverified accounts that follow more than 7k accounts. " \
+        { name: "UnverifiedOver7K", description: "Domain or Bluesky unverified accounts that follow more than 7k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 7000 }
       @blocklists[:over10k_unverified] =
-        { name: "UnverifiedOver10K", description: "Domain unverified accounts that follow more than 10k accounts. " \
+        { name: "UnverifiedOver10K", description: "Domain or Bluesky unverified accounts that follow more than 10k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 10_000 }
       @blocklists[:over20k_unverified] =
-        { name: "UnverifiedOver20K", description: "Domain unverified accounts that follow more than 20k accounts. " \
+        { name: "UnverifiedOver20K", description: "Domain or Bluesky unverified accounts that follow more than 20k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 20_000 }
       @blocklists[:over50k_unverified] =
-        { name: "UnverifiedOver50K", description: "Domain unverified accounts that follow more than 50k accounts. " \
+        { name: "UnverifiedOver50K", description: "Domain or Bluesky unverified accounts that follow more than 50k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 50_000 }
       @blocklists[:over100k_unverified] =
-        { name: "UnverifiedOver100K", description: "Domain unverified accounts that follow more than 100k accounts. " \
+        { name: "UnverifiedOver100K", description: "Domain or Bluesky unverified accounts that follow more than 100k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
         "simply that they follow a large number of accounts.", exception_file: "over_exceptions.txt",
           threshold: 100_000 }
@@ -186,6 +186,12 @@ module BskyProlificFollowers
       end
     end
 
+    # Returns true if a profile is verified (domain or blue check)
+    def is_verified(profile)
+      (!profile["handle"].end_with?("bsky.social")) ||
+        (profile.key?("verification") && profile["verification"]["verifiedStatus"].eql?("valid"))
+    end
+
     # check the follows on a profile and add to a list if appropriate
     def check_follows(bsky, profile)
       follows_count = profile["followsCount"]
@@ -214,7 +220,7 @@ module BskyProlificFollowers
         end
 
         follow_limit = @blocklists[list_symbol][:threshold]
-        if (follows_count >= follow_limit) && profile["handle"].end_with?("bsky.social")
+        if (follows_count >= follow_limit) && (!is_verified(profile))
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
           add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
         else
