@@ -193,7 +193,7 @@ module BskyProlificFollowers
 
     # Returns true if a profile is verified (domain or blue check)
     def is_verified(profile)
-      (!profile["handle"].end_with?("bsky.social")) ||
+      !profile["handle"].end_with?("bsky.social") ||
         (profile.key?("verification") && profile["verification"]["verifiedStatus"].eql?("valid"))
     end
 
