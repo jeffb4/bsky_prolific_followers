@@ -157,8 +157,7 @@ module BskyProlificFollowers
     end
 
     def did_present_in_list?(did, list_sym)
-      found = @blocklists[list_sym][:entries].any? { |e| e[:did] == did }
-      found
+      @blocklists[list_sym][:entries].any? { |e| e[:did] == did }
     end
 
     def add_user_to_list_if_not_present(bsky, account_did, list_sym)
