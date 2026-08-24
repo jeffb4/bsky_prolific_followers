@@ -47,6 +47,11 @@ module BskyProlificFollowers
 
     def init_blocklists
       @blocklists = Concurrent::Map.new
+      @blocklists[:wsocial] =
+        { name: "WSocial", description: "Accounts that have a handle ending in wsocial.eu. " \
+          "There is no implication that these accounts themselves are not run by humans, " \
+          "simply that they are associated with a particular domain.", exception_file: "wsocial_exceptions.txt",
+          domain: "wsocial.eu" }
       @blocklists[:over5k] =
         { name: "Over5K", description: "Accounts that follow more than 5k accounts. " \
         "There is no implication that these accounts themselves are not run by humans, " \
@@ -193,6 +198,30 @@ module BskyProlificFollowers
         (profile.key?("verification") && profile["verification"]["verifiedStatus"].eql?("valid"))
     end
 
+    # Returns true if a profile handle ends with a given domain (e.g. wsocial.eu)
+    def handle_ends_with?(profile, domain)
+      profile["handle"].end_with?(domain)
+    end
+
+    # Check a profile for membership in blocklist domains and add to the list if appropriate
+    def check_domains(bsky, profile)
+      %i[wsocial].each do |list_symbol|
+        if @blocklists[list_symbol][:exceptions].include?(profile["did"])
+          puts "Removing #{profile["did"]} (exception)" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+          next
+        end
+        domain = @blocklists[list_symbol][:domain]
+        if handle_ends_with?(profile, domain)
+          puts "Adding #{profile["did"]} (handle ends with #{domain})" if @verbose
+          add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
+        else
+          puts "Removing #{profile["did"]} (handle does not end with #{domain})" if @verbose
+          remove_user_from_list_if_present(bsky, profile["did"], list_symbol)
+        end
+      end
+    end
+
     # check the follows on a profile and add to a list if appropriate
     def check_follows(bsky, profile)
       follows_count = profile["followsCount"]
@@ -291,6 +320,7 @@ module BskyProlificFollowers
 
               check_follows(bsky, profile)
               check_followers(bsky, profile)
+              check_domains(bsky, profile)
             rescue Minisky::ExpiredTokenError => e
               puts(e.full_message)
               bsky = Minisky.new("bsky.social", "creds.yml")
