@@ -249,7 +249,7 @@ module BskyProlificFollowers
         end
 
         follow_limit = @blocklists[list_symbol][:threshold]
-        if (follows_count >= follow_limit) && (!is_verified(profile))
+        if (follows_count >= follow_limit) && !is_verified(profile)
           puts "Adding #{profile["did"]} (#{follows_count} >= #{follows_limit})" if @verbose
           add_user_to_list_if_not_present(bsky, profile["did"], list_symbol)
         else
@@ -521,13 +521,14 @@ module BskyProlificFollowers
           # the number of stored profiles, drain the query queue then remove duplicate elements, then
           # requeue into the query queue
           sleep 300
-          next unless ((@did_listadd_queue.length > 1_000_000) ||
-                        (@did_schedule_queue.length > 1_000_000))
+          next unless (@did_listadd_queue.length > 1_000_000) ||
+                      (@did_schedule_queue.length > 1_000_000)
+
           new_listadd_queue = []
           new_schedule_queue = []
           puts "Beginning queue compaction"
 
-          if (@did_listadd_queue.length > 1_000_000)
+          if @did_listadd_queue.length > 1_000_000
             begin
               loop do
                 new_listadd_queue << @did_listadd_queue.pop(true)
@@ -539,7 +540,7 @@ module BskyProlificFollowers
             puts "new_listadd_queue.uniq! complete: #{new_listadd_queue.length}"
             new_listadd_queue.each { |q| @did_listadd_queue << q }
           end
-          if (@did_schedule_queue.length > 1_000_000)
+          if @did_schedule_queue.length > 1_000_000
             begin
               loop do
                 new_schedule_queue << @did_schedule_queue.pop(true)
