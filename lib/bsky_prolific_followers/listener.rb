@@ -152,7 +152,8 @@ module BskyProlificFollowers
     end
 
     def did_present_in_list?(did, list_sym)
-      @blocklists[list_sym][:entries].any? { |e| e[:did] == did }
+      found = @blocklists[list_sym][:entries].any? { |e| e[:did] == did }
+      found
     end
 
     def add_user_to_list_if_not_present(bsky, account_did, list_sym)
@@ -543,7 +544,8 @@ module BskyProlificFollowers
     end
 
     def self.get_account_lists(bsky)
-      bsky.get_request("app.bsky.graph.getLists", { actor: bsky.user.did })["lists"]
+      bsky_anon = Minisky.new("public.api.bsky.app", nil)
+      bsky_anon.get_request("app.bsky.graph.getLists", { actor: bsky.user.did })["lists"]
     end
 
     def create_list_if_missing(bsky, list_id)
